@@ -44,7 +44,7 @@
 - Three transaction types: `NODE_AUTH` (0x01), `APP_SIG_VERIFY` (0x02), `PAYLOAD_COMMIT` (0x03)
 - Ed25519 digital signatures with full verification
 - Merkle tree for payload root commitment
-- PII detection and rejection at chain level (email, SSN, phone regex)
+- PII detection and alert system notifiying user when their info is discovered online and onchain.
 - X25519 + AES-256-GCM end-to-end encryption for crawler payloads
 - Binary hash self-check / quarantine enforcement
 - Atomic config writes via `fsync()`-guaranteed writes
@@ -60,33 +60,43 @@
 - Template and broker data management for document generation
 
 **Legal Document Generation (Lawyer)**
-- Fetches templates from Historian, fills with broker data via Python `str.format()`
-- Generates filled documents with `[digital-signature]` placeholder
+- Fetches templates from Historian, fills with the offending broker and violating data via Python `str.format()`
+- Generates filled documents with `[digital-signature]` placeholder and required user info
+- Makes available a completed, signed pdf copy for user download/print etc.
+- If enabled submits a signed copy to the offending broker electronically via email, POST, FAX etc.
+- Prepares escalation documents if offeding item isnt removed within reasonable time frames.
+- Covers legal documents from all of North America including, Canada, U.S.A, Mexico. With some of these countires smaller
+  state/provincial/county regions being covered under aternate/modified compliancy laws.
+- Strives to be Legal and Fully Qualifying to be legally binding within covered jurisdictions and remaining compliant to
+  covered jusidictions privacy laws.
 
 **Messaging & SMTP (Inboxer)**
-- SQLite-backed persistent channel-based messaging (staff chat)
-- Outbound SMTP mail delivery with provider-agnostic queuing
+- SQLite-backed persistent channel-based, internal(staff chat) interstaff/inter-departmental messaging, as
+  well as providing the infra for active 24/7 online Technical support chat with customers and support staff. Including
+  ability to create / close / review and link service tickets to customers progiles stored in cityhall db. Closeing the human-in-the-loop support system.  
+- Outbound SMTP mail delivery with support@d31337m3.com default sender output with provider-agnostic queuing, and OTP pin genratiom/sending for 2fa, and email address verification during onboardimg.
 
 **UI Delivery (Picaso)**
-- Static frontend file serving and upload management
-- Traffic reporting back to Director
-- Self-health monitoring with auto-restart logic
+- Static frontend react spa app serving and file upload(admin panel uploads, user screenshots, broker csv updates etc) management
+- Traffic reporting back to Director, allowimg usage metrics per user/region/etc
+- Self-health monitoring with auto-restart logic for all assigned from end serves.
+- lite nginx implementation/configuration built in, and automatic certbot ssl cert install and renewals.
 
 **Networking (Spiderwire)**
-- Health endpoint + presence recording stub
+- Health endpoint + presence detection, anti-ddos, firewallimg, blacklisting of ips etc.     
 
 **Frontend (React 19 + TypeScript 6 + Vite 8)**
-- Sp1d3r API test panel: health check and crawl test submission
+- Sp1d3r API test panel: health check and crawl test submission(we be reverted to uiless api only at launch/or admin gated)
 - Configurable API base URL and auth token
 
 ### 🚧 Missing / Incomplete
-- **CityHall**: no automated tests (only manual via Swagger at `/docs`)
-- **Sp1d3r microservice wrapper**: `POST /v1/crawl` is a stub — accepts URLs but does not invoke the crawler engine
+- **Missing user/admin faceing UI/Frontend react apps**: must implement these asap to finish workload flow testing.
+- **Sp1d3r microservice wrapper**: `POST /v1/crawl` is a stub — accepts URLs but does not invoke the crawler (MUST IMPLEMENT engine)
 - **Crawler engine** (`d31337m3_crawler`): anti-fingerprinting wrapper not wired; no async gateway for task routing
-- **No durable encrypted ciphertext storage** for crawler findings (in-memory only)
-- **Spiderwire**: only a placeholder — no real networking fabric
-- **No CI/CD**, no Kubernetes manifests, no Infisical secrets integration (env vars only)
-- **No blockchain persistence** — chain state is in-memory only
+- **No durable encrypted ciphertext storage** for crawler findings IS in-memory only(IMPLEMENT FULL BLOCKCHAIN FUNC.)
+- **Spiderwire**: only a placeholder — no real networking fabric - may get absorbed by other services.
+- **No CI/CD**, no Kubernetes(CONSIDERING) manifests, no Infisical(IMPLEMENTING ASAP) secrets integration (env vars only)
+- **No blockchain persistence** — chain state is in-memory only (URGENT TODO ITEM)
 
 ---
 
