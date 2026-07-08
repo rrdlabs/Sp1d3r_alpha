@@ -1,6 +1,6 @@
-# d31337m3 — Privacy-Preserving Distributed Crawler & AppChain
+# D31337m3 (Pronouced: Delete Me) Privacy and Online reputation Management SaaS Platform
 
-**d31337m3** is a SaaS platform that combines a **privacy and reputation management platform with distributed crawler/scraper network** with a custom **Proof-of-Authority AppChain (blockchain)** and an **onboarding/user management gateway**. It scrapes data from web data brokers, based on users profile data and users custom keywords, encrypts findings client-side (E2EE) to further protect users, commits only cryptographic hashes to the chain, and provides identity, messaging, document generation, and UI services.
+**d31337m3** is an advanced SaaS platform that combines a **privacy and reputation management web app with distributed crawler/scraper network** with a custom **Proof-of-Authority AppChain (blockchain)**for securing user data and immutable proof of takedown notice delivery, and identity verification, an **onboarding/user management gateway** and a automated Legal document Generation with signature signing microservice. It scrapes data from web data brokers,search engine indexes (Google, Bing, Yahoo etc), based on users entered profile data in addition to users selected custom keywords, encrypts findings client-side (E2EE) to further protect users, writing only the cryptographic hashes that secured the data to the blockchain, and provides identity, secure messaging, legal document generation and signing, and the frontend UI services.
 
 > **Status: ALPHA** — unstable, incomplete, not production-ready.
 
