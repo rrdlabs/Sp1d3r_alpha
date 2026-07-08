@@ -14,6 +14,24 @@
 - [x] Sp1d3r: implement PII detection alerting
 - [x] Add missing `requirements.txt` for historian and lawyer (Docker builds)
 
+## ✅ Completed (P2P Sync v0.3.0)
+
+- [x] Seed node config (`SP1D3R_SEED_NODE` / `--seed`)
+- [x] `GET /v1/chain/blocks?since=<height>` — returns packed blocks
+- [x] `GET /v1/chain/snapshot` — returns full chain state
+- [x] `AppChain.import_blocks()` — validate & replay transactions
+- [x] Sync-on-boot from seed node
+- [x] `GET /v1/chain/peers` + `POST /v1/chain/peers`
+- [x] Peer store (peers.json persistence, prune, heartbeat tracking)
+- [x] `GET /v1/chain/ping` — signed heartbeat endpoint
+- [x] Transaction gossip (`POST /v1/chain/gossip`, `GossipWorker`)
+- [x] Block announcement via gossip callback
+- [x] Gossip dedup (by transaction hash)
+- [x] Fork detection during import (chain linkage validation)
+- [x] `GET /v1/chain/sync` — sync status endpoint
+- [x] Genesis block hash hardcoded (`GENESIS_PREV_HASH`)
+- [x] P2P auth scheme (signed `X-Node-Pubkey` / `X-Node-Signature` headers)
+
 ## 🔲 Remaining
 
 - [ ] Enable `docker compose up --build` for all 7 services to work without errors

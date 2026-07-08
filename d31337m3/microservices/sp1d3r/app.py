@@ -2,13 +2,30 @@ from __future__ import annotations
 
 import json
 import os
+import threading
 import time
+import urllib.parse
 import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
 
-from d31337m3_chain import NODE_AUTH, PAYLOAD_COMMIT, AppChain, ChainConfig, Ed25519Identity, TransactionHeader, sha256_bytes
+from d31337m3_chain import (
+    NODE_AUTH,
+    PAYLOAD_COMMIT,
+    AppChain,
+    ChainConfig,
+    Ed25519Identity,
+    GENESIS_PREV_HASH,
+    GossipWorker,
+    PeerStore,
+    TransactionHeader,
+    fetch_json,
+    sha256_bytes,
+    sign_request,
+    verify_signed_request,
+)
+from d31337m3_chain.transaction import TRANSACTION_SIZE
 from d31337m3_crawler import CrawlerWorker, FindingStore, WorkerConfig
 
 HOST = os.getenv("SP1D3R_HOST", "0.0.0.0")
@@ -18,6 +35,9 @@ DATA_DIR.mkdir(parents=True, exist_ok=True)
 CHAIN_STATE_PATH = DATA_DIR / "chain_state.json"
 FINDINGS_DIR = DATA_DIR / "findings"
 IDENTITY_PATH = DATA_DIR / "node_identity.hex"
+PEERS_PATH = DATA_DIR / "peers.json"
+SEED_NODE = os.getenv("SP1D3R_SEED_NODE", "")
+GOSSIP_ENABLED = os.getenv("SP1D3R_GOSSIP_ENABLED", "true").lower() == "true"
 DIRECTOR_URL = os.getenv("DIRECTOR_URL", "http://127.0.0.1:8400")
 
 
@@ -40,15 +60,78 @@ identity = _load_or_create_identity()
 chain = AppChain(ChainConfig(), state_path=CHAIN_STATE_PATH)
 worker = CrawlerWorker(WorkerConfig(max_workers=4), chain, identity)
 store = FindingStore(FINDINGS_DIR)
+peer_store = PeerStore(PEERS_PATH)
 
 if identity.public_key not in chain.authenticated_nodes:
     auth_tx = TransactionHeader.create(NODE_AUTH, identity, sha256_bytes(b"sp1d3r-boot"))
     chain.submit(auth_tx)
 
+gossip_worker = GossipWorker(identity, peer_store, interval=2.0)
+
+
+def _sync_from_seed(seed_url: str) -> bool:
+    seed_url = seed_url.rstrip("/")
+    snapshot = fetch_json(f"{seed_url}/v1/chain/snapshot", identity)
+    if snapshot is None:
+        print(f"[sync] FAILED to fetch snapshot from {seed_url}", flush=True)
+        return False
+    if snapshot.get("chain_id") != chain.config.chain_id:
+        print(f"[sync] chain_id mismatch: seed={snapshot.get('chain_id')} local={chain.config.chain_id}", flush=True)
+        return False
+    if bytes.fromhex(snapshot.get("genesis_prev_hash", "")) != GENESIS_PREV_HASH:
+        print("[sync] genesis_prev_hash mismatch", flush=True)
+        return False
+
+    seed_height = snapshot.get("height", -1)
+    local_height = chain.height
+    if seed_height <= local_height:
+        print(f"[sync] already at tip (local={local_height} seed={seed_height})", flush=True)
+        return True
+
+    blocks_data = fetch_json(f"{seed_url}/v1/chain/blocks?since={local_height}", identity)
+    if blocks_data is None:
+        print("[sync] FAILED to fetch blocks from seed", flush=True)
+        return False
+
+    packed_hex_list: list[str] = blocks_data.get("blocks", [])
+    if not packed_hex_list:
+        print("[sync] no blocks returned from seed", flush=True)
+        return False
+
+    packed_txs = [bytes.fromhex(h) for h in packed_hex_list]
+    try:
+        count = chain.import_blocks(packed_txs)
+        print(f"[sync] imported {count} blocks from seed", flush=True)
+        return True
+    except ValueError as exc:
+        print(f"[sync] block import FAILED: {exc}", flush=True)
+        return False
+
+
+def _gossip_callback(height: int, packed: bytes) -> None:
+    if GOSSIP_ENABLED:
+        gossip_worker.gossip(packed)
+
+
+chain.on_commit(_gossip_callback)
+
+
+def _verify_p2p(method: str, path: str, body: bytes) -> bytes | None:
+    pubkey_hex = str(getattr(Sp1d3rHandler, "_p2p_pubkey_hex", ""))
+    sig_hex = str(getattr(Sp1d3rHandler, "_p2p_sig_hex", ""))
+    return verify_signed_request(pubkey_hex, sig_hex, method, path, body)
+
 
 class Sp1d3rHandler(BaseHTTPRequestHandler):
+    _p2p_pubkey_hex: str = ""
+    _p2p_sig_hex: str = ""
+
     def do_GET(self) -> None:  # noqa: N802
-        if self.path == "/health":
+        parsed = urllib.parse.urlparse(self.path)
+        path = parsed.path
+        query = urllib.parse.parse_qs(parsed.query)
+
+        if path == "/health":
             self._send(200, {
                 "status": "ok",
                 "service": "sp1d3r",
@@ -56,21 +139,67 @@ class Sp1d3rHandler(BaseHTTPRequestHandler):
                 "authenticated_nodes": len(chain.authenticated_nodes),
                 "payload_roots": len(chain.payload_roots),
                 "findings_stored": len(store.list_hashes()),
+                "peers": len(peer_store.list()),
+                "height": chain.height,
             })
             return
-        if self.path == "/v1/chain/state":
+
+        if path == "/v1/chain/state":
             self._send(200, {
                 "blocks": len(chain.blocks),
                 "authenticated_nodes": len(chain.authenticated_nodes),
                 "approved_app_hashes": len(chain.approved_app_hashes),
                 "payload_roots": len(chain.payload_roots),
                 "events": len(chain.events),
+                "height": chain.height,
             })
             return
+
+        if path == "/v1/chain/snapshot":
+            self._p2p_sign_response(200, chain.export_snapshot())
+            return
+
+        if path == "/v1/chain/blocks":
+            since = int(query.get("since", ["-1"])[0])
+            blocks = chain.blocks_since(since)
+            self._p2p_sign_response(200, {
+                "blocks": [t.hex() for t in blocks],
+                "since": since,
+                "tip_height": chain.height,
+            })
+            return
+
+        if path == "/v1/chain/peers":
+            peer_list = [
+                {"url": p.url, "pubkey": p.pubkey.hex(), "height": p.height, "last_seen": p.last_seen}
+                for p in peer_store.list()
+            ]
+            self._p2p_sign_response(200, {"peers": peer_list})
+            return
+
+        if path == "/v1/chain/ping":
+            self._p2p_sign_response(200, {
+                "status": "pong",
+                "height": chain.height,
+                "timestamp": time.time(),
+            })
+            return
+
+        if path == "/v1/chain/sync":
+            self._send(200, {
+                "local_height": chain.height,
+                "peers_known": len(peer_store.list()),
+                "gossip_enabled": GOSSIP_ENABLED,
+            })
+            return
+
         self._send(404, {"error": "not_found"})
 
     def do_POST(self) -> None:  # noqa: N802
-        if self.path == "/v1/crawl":
+        parsed = urllib.parse.urlparse(self.path)
+        path = parsed.path
+
+        if path == "/v1/crawl":
             payload = self._read_json()
             urls: list[str] = payload.get("urls", [])
             recipient_pubkey_hex: str = payload.get("recipient_public_key", "")
@@ -110,6 +239,39 @@ class Sp1d3rHandler(BaseHTTPRequestHandler):
                 "failures": failures,
             })
             return
+
+        if path == "/v1/chain/peers":
+            payload = self._read_json()
+            peer_url = payload.get("url", "")
+            peer_pubkey_hex = payload.get("pubkey", "")
+            if not peer_url or not peer_pubkey_hex:
+                self._send(400, {"error": "url_and_pubkey_required"})
+                return
+            peer_store.add(peer_url, bytes.fromhex(peer_pubkey_hex))
+            self._send(200, {"status": "peer_added", "url": peer_url})
+            return
+
+        if path == "/v1/chain/gossip":
+            payload = self._read_json()
+            packed_hex = payload.get("transaction", "")
+            if not packed_hex:
+                self._send(400, {"error": "transaction_required"})
+                return
+            packed = bytes.fromhex(packed_hex)
+            if len(packed) != TRANSACTION_SIZE:
+                self._send(400, {"error": "invalid_transaction_size"})
+                return
+            tx = TransactionHeader.unpack(packed)
+            if not tx.signature_is_valid():
+                self._send(400, {"error": "invalid_signature"})
+                return
+            event = chain.submit(tx)
+            if event.level == "critical":
+                self._send(400, {"error": event.message})
+                return
+            self._send(200, {"status": "gossip_accepted", "code": event.code})
+            return
+
         self._send(404, {"error": "not_found"})
 
     def log_message(self, format: str, *args: Any) -> None:  # noqa: A003
@@ -120,6 +282,17 @@ class Sp1d3rHandler(BaseHTTPRequestHandler):
         if length <= 0:
             return {}
         return json.loads(self.rfile.read(length).decode("utf-8"))
+
+    def _p2p_sign_response(self, status: int, payload: dict[str, Any]) -> None:
+        body = json.dumps(payload).encode("utf-8")
+        sig = identity.sign(sha256_bytes(b"GET " + self.path.encode() + body))
+        self.send_response(status)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("X-Node-Pubkey", identity.public_key.hex())
+        self.send_header("X-Node-Signature", sig.hex())
+        self.end_headers()
+        self.wfile.write(body)
 
     def _send(self, status: int, payload: dict[str, Any]) -> None:
         body = json.dumps(payload).encode("utf-8")
@@ -150,8 +323,19 @@ def _register_with_director() -> None:
 
 
 def main() -> None:
+    if SEED_NODE:
+        print(f"[boot] syncing from seed: {SEED_NODE}", flush=True)
+        ok = _sync_from_seed(SEED_NODE)
+        if not ok:
+            print("[boot] seed sync FAILED — starting anyway with local chain", flush=True)
+        else:
+            print("[boot] seed sync complete", flush=True)
     _register_with_director()
+    if GOSSIP_ENABLED:
+        gossip_worker.start()
+        print("[boot] gossip worker started", flush=True)
     server = ThreadingHTTPServer((HOST, PORT), Sp1d3rHandler)
+    print(f"[boot] sp1d3r listening on {HOST}:{PORT}", flush=True)
     server.serve_forever()
 
 
