@@ -1,3 +1,3 @@
-from .worker import CrawlerWorker, EncryptedFinding, WorkerConfig
+from .worker import CrawlerWorker, EncryptedFinding, FindingStore, WorkerConfig
 
-__all__ = ["CrawlerWorker", "EncryptedFinding", "WorkerConfig"]
+__all__ = ["CrawlerWorker", "EncryptedFinding", "FindingStore", "WorkerConfig"]

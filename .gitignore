@@ -1,1 +1,9 @@
-__pycache__/`n*.pyc`n.env`n.vscode/`n
+__pycache__/
+*.pyc
+.env
+.vscode/
+node_modules/
+dist/
+dist-ssr/
+*.log
+.DS_Store

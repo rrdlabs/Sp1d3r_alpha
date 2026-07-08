@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import json
 import os
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
+from pathlib import Path
+from typing import Any
 
 from cryptography.hazmat.primitives.asymmetric import x25519
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
@@ -75,3 +78,41 @@ class CrawlerWorker:
             payload_hash=payload_hash,
             merkle_root=merkle_root([payload_hash]),
         )
+
+
+class FindingStore:
+    def __init__(self, store_dir: str | Path) -> None:
+        self.store_dir = Path(store_dir)
+        self.store_dir.mkdir(parents=True, exist_ok=True)
+
+    def save(self, finding: EncryptedFinding, metadata: dict[str, Any] | None = None) -> Path:
+        key = finding.payload_hash.hex()
+        path = self.store_dir / f"{key}.json"
+        data = {
+            "payload_hash": key,
+            "ephemeral_public_key": finding.ephemeral_public_key.hex(),
+            "nonce": finding.nonce.hex(),
+            "ciphertext": finding.ciphertext.hex(),
+            "merkle_root": finding.merkle_root.hex(),
+            "metadata": metadata or {},
+        }
+        tmp = path.with_suffix(".tmp")
+        tmp.write_text(json.dumps(data, indent=2), encoding="utf-8")
+        tmp.replace(path)
+        return path
+
+    def load(self, payload_hash: bytes) -> EncryptedFinding | None:
+        path = self.store_dir / f"{payload_hash.hex()}.json"
+        if not path.exists():
+            return None
+        data = json.loads(path.read_text(encoding="utf-8"))
+        return EncryptedFinding(
+            ephemeral_public_key=bytes.fromhex(data["ephemeral_public_key"]),
+            nonce=bytes.fromhex(data["nonce"]),
+            ciphertext=bytes.fromhex(data["ciphertext"]),
+            payload_hash=bytes.fromhex(data["payload_hash"]),
+            merkle_root=bytes.fromhex(data["merkle_root"]),
+        )
+
+    def list_hashes(self) -> list[bytes]:
+        return [bytes.fromhex(p.stem) for p in self.store_dir.glob("*.json")]

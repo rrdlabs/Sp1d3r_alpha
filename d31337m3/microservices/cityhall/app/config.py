@@ -8,6 +8,9 @@ class Settings(BaseSettings):
     jwt_expire_minutes: int = 1440
     chain_state_path: str = ""
     allowed_origins: list[str] = ["*"]
+    rate_limit_enabled: bool = True
+    rate_limit_max_requests: int = 60
+    rate_limit_window_seconds: int = 60
 
     model_config = {"env_prefix": "CITYHALL_"}
 

@@ -1,6 +1,8 @@
+import secrets
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
+from pydantic import BaseModel, EmailStr
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -24,6 +26,15 @@ from app.schemas import (
     OnboardingRequest,
     TokenResponse,
 )
+
+
+class VerifyEmailRequest(BaseModel):
+    email: EmailStr
+
+
+class ConfirmEmailRequest(BaseModel):
+    email: EmailStr
+    token: str
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -162,6 +173,46 @@ async def get_challenge():
 
     challenge = secrets.token_hex(32)
     return ChallengeResponse(challenge=challenge)
+
+
+@router.post("/verify-email")
+async def verify_email(
+    req: VerifyEmailRequest,
+    session: AsyncSession = Depends(get_session),
+):
+    result = await session.execute(select(User).where(User.email == req.email))
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=404, detail="Email not registered")
+    if user.email_verified:
+        return {"status": "already_verified"}
+    token = secrets.token_urlsafe(32)
+    user.email_verification_token = token
+    await session.flush()
+    return {
+        "status": "verification_sent",
+        "detail": "Check your email for the verification code.",
+        "token": token,
+    }
+
+
+@router.post("/confirm-email")
+async def confirm_email(
+    req: ConfirmEmailRequest,
+    session: AsyncSession = Depends(get_session),
+):
+    result = await session.execute(select(User).where(User.email == req.email))
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=404, detail="Email not registered")
+    if user.email_verified:
+        return {"status": "already_verified"}
+    if not user.email_verification_token or user.email_verification_token != req.token:
+        raise HTTPException(status_code=400, detail="Invalid verification token")
+    user.email_verified = True
+    user.email_verification_token = None
+    await session.flush()
+    return {"status": "email_verified"}
 
 
 @router.post("/authenticate-with-key")
