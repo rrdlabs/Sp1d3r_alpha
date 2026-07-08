@@ -1,0 +1,174 @@
+from __future__ import annotations
+
+import json
+import os
+import time
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
+from typing import Any
+
+DATA_DIR = Path(os.getenv("DIRECTOR_DATA_DIR", "/tmp/director-data"))
+DATA_DIR.mkdir(parents=True, exist_ok=True)
+DB_PATH = DATA_DIR / "director.json"
+
+
+def _load_store() -> dict[str, Any]:
+    if DB_PATH.exists():
+        with DB_PATH.open("r", encoding="utf-8") as handle:
+            return json.load(handle)
+    return {"services": {}, "traffic": {"frontends": {}}, "alerts": []}
+
+
+def _save_store(store: dict[str, Any]) -> None:
+    with DB_PATH.open("w", encoding="utf-8") as handle:
+        json.dump(store, handle, indent=2, sort_keys=True)
+
+
+class DirectorHandler(BaseHTTPRequestHandler):
+    def do_GET(self) -> None:  # noqa: N802
+        path = self._normal_path()
+        if path == "/health":
+            self._send(200, {"status": "ok", "services": len(_load_store()["services"])})
+            return
+        if path == "/services":
+            store = _load_store()
+            self._send(200, {"services": list(store["services"].values())})
+            return
+        if path.startswith("/services/"):
+            name = path.split("/", 2)[2]
+            store = _load_store()
+            service = store["services"].get(name)
+            if service is None:
+                self._send(404, {"error": "service_not_found"})
+                return
+            self._send(200, {"service": service})
+            return
+        if path == "/traffic/frontend":
+            store = _load_store()
+            self._send(200, {"traffic": store["traffic"]["frontends"]})
+            return
+        if path == "/alerts":
+            store = _load_store()
+            self._send(200, {"alerts": store["alerts"]})
+            return
+        self._send(404, {"error": "not_found"})
+
+    def do_POST(self) -> None:  # noqa: N802
+        path = self._normal_path()
+        if path == "/services":
+            payload = self._read_json()
+            store = _load_store()
+            service_name = payload["name"]
+            service = store["services"].setdefault(service_name, {
+                "name": service_name,
+                "status": "running",
+                "healthy": True,
+                "failures": 0,
+                "restart_count": 0,
+                "last_seen": int(time.time()),
+            })
+            service.update({
+                "url": payload.get("url", service.get("url")),
+                "kind": payload.get("kind", service.get("kind", "service")),
+                "status": payload.get("status", service.get("status", "running")),
+                "healthy": bool(payload.get("healthy", service.get("healthy", True))),
+                "last_seen": int(time.time()),
+            })
+            _save_store(store)
+            self._send(201, {"service": service})
+            return
+        if path.startswith("/services/") and path.endswith("/heartbeat"):
+            name = path.split("/", 2)[2].split("/", 1)[0]
+            payload = self._read_json()
+            store = _load_store()
+            service = store["services"].setdefault(name, {"name": name, "status": "running", "healthy": True, "failures": 0, "restart_count": 0, "last_seen": int(time.time())})
+            service["healthy"] = bool(payload.get("healthy", True))
+            service["status"] = payload.get("status", "running" if service["healthy"] else "degraded")
+            service["last_seen"] = int(time.time())
+            if not service["healthy"]:
+                service["failures"] = int(service.get("failures", 0)) + 1
+            else:
+                service["failures"] = 0
+            _save_store(store)
+            self._send(200, {"service": service})
+            return
+        if path.startswith("/services/") and path.endswith("/health"):
+            name = path.split("/", 2)[2].split("/", 1)[0]
+            payload = self._read_json()
+            store = _load_store()
+            service = store["services"].setdefault(name, {"name": name, "status": "running", "healthy": True, "failures": 0, "restart_count": 0, "last_seen": int(time.time())})
+            healthy = bool(payload.get("healthy", True))
+            service["healthy"] = healthy
+            service["status"] = payload.get("status", "running" if healthy else "degraded")
+            service["last_seen"] = int(time.time())
+            if healthy:
+                service["failures"] = 0
+            else:
+                service["failures"] = int(service.get("failures", 0)) + 1
+            _save_store(store)
+            self._send(200, {"service": service})
+            return
+        if path.startswith("/services/") and path.endswith("/alert"):
+            name = path.split("/", 2)[2].split("/", 1)[0]
+            payload = self._read_json()
+            store = _load_store()
+            store["alerts"].append({"service": name, "message": payload.get("message", "alert"), "at": int(time.time())})
+            _save_store(store)
+            self._send(201, {"status": "recorded"})
+            return
+        if path == "/traffic/frontend":
+            payload = self._read_json()
+            store = _load_store()
+            traffic = store["traffic"].setdefault("frontends", {})
+            service_name = payload.get("service", "frontend")
+            entry = traffic.setdefault(service_name, {"service": service_name, "requests": 0, "last_seen": int(time.time()), "paths": {}})
+            entry["requests"] = int(entry.get("requests", 0)) + int(payload.get("requests", 1))
+            entry["last_seen"] = int(time.time())
+            entry.setdefault("paths", {})
+            entry["paths"][payload.get("path", "/")] = int(entry["paths"].get(payload.get("path", "/"), 0)) + 1
+            if payload.get("status"):
+                entry["last_status"] = payload["status"]
+            _save_store(store)
+            self._send(201, {"traffic": entry})
+            return
+        if path == "/reconcile":
+            store = _load_store()
+            threshold = int(os.getenv("DIRECTOR_RESTART_THRESHOLD", "2"))
+            for service in store["services"].values():
+                if not service.get("healthy", True) and int(service.get("failures", 0)) >= threshold:
+                    service["status"] = "restarting"
+                    service["restart_count"] = int(service.get("restart_count", 0)) + 1
+                    store["alerts"].append({"service": service["name"], "message": "restarting after failures", "at": int(time.time())})
+            _save_store(store)
+            self._send(200, {"status": "reconciled", "services": list(store["services"].values())})
+            return
+        self._send(404, {"error": "not_found"})
+
+    def log_message(self, format: str, *args: Any) -> None:  # noqa: A003
+        return
+
+    def _normal_path(self) -> str:
+        return self.path.split("?", 1)[0]
+
+    def _read_json(self) -> dict[str, Any]:
+        length = int(self.headers.get("Content-Length", "0"))
+        if length <= 0:
+            return {}
+        return json.loads(self.rfile.read(length).decode("utf-8"))
+
+    def _send(self, status: int, payload: dict[str, Any]) -> None:
+        body = json.dumps(payload).encode("utf-8")
+        self.send_response(status)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+
+def main() -> None:
+    server = ThreadingHTTPServer(("0.0.0.0", int(os.getenv("DIRECTOR_PORT", "8400"))), DirectorHandler)
+    server.serve_forever()
+
+
+if __name__ == "__main__":
+    main()

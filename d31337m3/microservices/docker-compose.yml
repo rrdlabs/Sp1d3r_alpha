@@ -1,0 +1,89 @@
+version: "3.9"
+
+services:
+  director:
+    build:
+      context: ./director
+    ports:
+      - "8400:8400"
+    environment:
+      DIRECTOR_PORT: "8400"
+      DIRECTOR_DATA_DIR: /data
+    volumes:
+      - director-data:/data
+
+  picaso:
+    build:
+      context: ./picaso
+    ports:
+      - "8500:8500"
+    environment:
+      PICASO_PORT: "8500"
+      PICASO_DATA_DIR: /data
+      DIRECTOR_URL: http://director:8400
+    depends_on:
+      - director
+    volumes:
+      - picaso-data:/data
+
+  historian:
+    build:
+      context: ./historian
+    ports:
+      - "8100:8100"
+    environment:
+      HISTORIAN_PORT: "8100"
+      HISTORIAN_DATA_DIR: /data
+    volumes:
+      - historian-data:/data
+
+  lawyer:
+    build:
+      context: ./lawyer
+    ports:
+      - "8200:8200"
+    environment:
+      LAWYER_PORT: "8200"
+      HISTORIAN_URL: http://historian:8100
+    depends_on:
+      - historian
+
+  inboxer:
+    build:
+      context: ./inboxer
+    ports:
+      - "8300:8300"
+    environment:
+      INBOXER_PORT: "8300"
+      INBOXER_DATA_DIR: /data
+    volumes:
+      - inboxer-data:/data
+
+  sp1d3r:
+    build:
+      context: ./sp1d3r
+    ports:
+      - "9000:9000"
+    environment:
+      SP1D3R_PORT: "9000"
+      SP1D3R_HOST: "0.0.0.0"
+      DIRECTOR_URL: http://director:8400
+    depends_on:
+      - director
+
+  spiderwire:
+    build:
+      context: ./spiderwire
+    ports:
+      - "8600:8600"
+    environment:
+      SPIDERWIRE_PORT: "8600"
+      DIRECTOR_URL: http://director:8400
+    depends_on:
+      - director
+
+volumes:
+  director-data:
+  picaso-data:
+  historian-data:
+  inboxer-data:
