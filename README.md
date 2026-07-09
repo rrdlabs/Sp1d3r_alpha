@@ -1,3 +1,17 @@
+    <a
+    id="cy-effective-orcid-url"
+    class="underline"
+     href="https://orcid.org/0009-0004-0440-056X"
+     target="orcid.widget"
+     rel="me noopener noreferrer"
+     style="vertical-align: top">
+     <img
+        src="https://orcid.org/sites/default/files/images/orcid_16x16.png"
+        style="width: 1em; margin-inline-start: 0.5em"
+        alt="ORCID iD icon"/>
+      https://orcid.org/0009-0004-0440-056X
+    </a>
+
 # D31337m3 (Pronouced: Delete Me) Privacy and Online reputation Management SaaS Platform
 
 **d31337m3** is an advanced SaaS platform that combines a **privacy and reputation management web app with distributed crawler/scraper network** with a custom **Proof-of-Authority AppChain (blockchain)**for securing user data and immutable proof of takedown notice delivery, and identity verification, an **onboarding/user management gateway** and a automated Legal document Generation with signature signing microservice. It scrapes data from web data brokers,search engine indexes (Google, Bing, Yahoo etc), based on users entered profile data in addition to users selected custom keywords, encrypts findings client-side (E2EE) to further protect users, writing only the cryptographic hashes that secured the data to the blockchain, and provides identity, secure messaging, legal document generation and signing, and the frontend UI services.
