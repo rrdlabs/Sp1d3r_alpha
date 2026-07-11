@@ -33,6 +33,11 @@ import MonitorHeartIcon from "@mui/icons-material/MonitorHeart"
 import CurrencyBitcoinIcon from "@mui/icons-material/CurrencyBitcoin"
 import TerminalIcon from "@mui/icons-material/Terminal"
 import EmailIcon from "@mui/icons-material/Email"
+import SecurityIcon from "@mui/icons-material/Security"
+import PaymentsIcon from "@mui/icons-material/Payments"
+import CreditCardIcon from "@mui/icons-material/CreditCard"
+import HealingIcon from "@mui/icons-material/Healing"
+import SubscriptionsIcon from "@mui/icons-material/Subscriptions"
 import { useAuth } from "../context/AuthContext"
 import ThemeToggle from "./ThemeToggle"
 
@@ -46,6 +51,7 @@ interface Props {
 const navItems = [
   { label: "Home", path: "/", icon: <HomeIcon /> },
   { label: "Dashboard", path: "/dashboard", icon: <DashboardIcon />, auth: true },
+  { label: "Subscribe", path: "/dashboard/subscribe", icon: <SubscriptionsIcon />, auth: true },
   {
     label: "Admin",
     path: "/admin",
@@ -55,9 +61,13 @@ const navItems = [
       { label: "Overview", path: "/admin", icon: <DashboardIcon /> },
       { label: "Users", path: "/admin/users", icon: <PeopleIcon /> },
       { label: "Services", path: "/admin/services", icon: <MonitorHeartIcon /> },
+      { label: "Platform Health", path: "/admin/health", icon: <HealingIcon /> },
       { label: "Blockchain", path: "/admin/blockchain", icon: <CurrencyBitcoinIcon /> },
       { label: "Logs", path: "/admin/logs", icon: <TerminalIcon /> },
       { label: "Email", path: "/admin/email", icon: <EmailIcon /> },
+      { label: "Network", path: "/admin/network", icon: <SecurityIcon /> },
+      { label: "Pricing Tiers", path: "/admin/pricing", icon: <PaymentsIcon /> },
+      { label: "Payments", path: "/admin/payments", icon: <CreditCardIcon /> },
     ],
   },
   { label: "Support", path: "/support", icon: <SupportAgentIcon />, auth: true },

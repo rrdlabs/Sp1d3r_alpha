@@ -27,6 +27,8 @@ class User(Base):
     is_employee: Mapped[bool] = mapped_column(Boolean, default=False)
     is_admin: Mapped[bool] = mapped_column(Boolean, default=False)
     is_super_admin: Mapped[bool] = mapped_column(Boolean, default=False)
+    is_suspended: Mapped[bool] = mapped_column(Boolean, default=False)
+    suspended_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     signup_date: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     founder_subscript: Mapped[str | None] = mapped_column(String(50), nullable=True)

@@ -14,6 +14,10 @@ import {
   Tab,
   Tabs,
   Chip,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
 } from "@mui/material"
 import SendIcon from "@mui/icons-material/Send"
 import EmailIcon from "@mui/icons-material/Email"
@@ -32,9 +36,9 @@ interface Message {
 export default function SupportChat() {
   const [tab, setTab] = useState(0)
   const [messages, setMessages] = useState<Message[]>([])
-  const [channel, setChannel] = useState("general")
+  const [channel, setChannel] = useState("support-channel")
   const [body, setBody] = useState("")
-  const [recipient, setRecipient] = useState("staff")
+  const [recipient, setRecipient] = useState("support-queue")
   const [chatError, setChatError] = useState("")
   const [chatMsg, setChatMsg] = useState("")
   const [mailTo, setMailTo] = useState("")
@@ -42,7 +46,14 @@ export default function SupportChat() {
   const [mailBody, setMailBody] = useState("")
   const [mailMsg, setMailMsg] = useState("")
   const [loading, setLoading] = useState(false)
+  const [isAdmin, setIsAdmin] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    apiRequest("cityhall", "GET", "/admin/users?page=1&page_size=1").then((res) => {
+      setIsAdmin(res.ok)
+    })
+  }, [])
 
   const loadMessages = async () => {
     setLoading(true)
@@ -60,14 +71,29 @@ export default function SupportChat() {
   useEffect(() => { loadMessages() }, [channel])
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }) }, [messages])
 
+  useEffect(() => {
+    if (!isAdmin && messages.length > 0) {
+      const currentUsername = localStorage.getItem("sp1d3r_username") || ""
+      const staffMsg = [...messages].reverse().find(
+        (m) => m.sender !== "system" && m.sender !== currentUsername,
+      )
+      if (staffMsg) {
+        setRecipient(staffMsg.sender)
+      } else {
+        setRecipient("support-queue")
+      }
+    }
+  }, [messages, isAdmin])
+
   const handleSend = async () => {
     if (!body.trim()) return
     setChatError("")
     setChatMsg("")
+    const sender = localStorage.getItem("sp1d3r_username") || "user"
     const res = await apiRequest<{ status: string }>("inboxer", "POST", "/messages", {
       channel,
-      sender: "admin",
-      recipient,
+      sender,
+      recipient: isAdmin ? recipient : "support-queue",
       body: body.trim(),
       metadata: {},
     })
@@ -108,20 +134,34 @@ export default function SupportChat() {
       <Paper sx={{ mb: 2 }} variant="outlined">
         <Tabs value={tab} onChange={(_, v) => setTab(v)} sx={{ borderBottom: 1, borderColor: "divider" }}>
           <Tab icon={<ChatIcon />} label="Messages" iconPosition="start" />
-          <Tab icon={<EmailIcon />} label="Email" iconPosition="start" />
+          {isAdmin && <Tab icon={<EmailIcon />} label="Email" iconPosition="start" />}
         </Tabs>
       </Paper>
 
       {tab === 0 && (
         <Paper sx={{ p: 2 }} variant="outlined">
           <Box sx={{ display: "flex", gap: 1, mb: 2, alignItems: "center" }}>
-            <TextField
-              size="small"
-              label="Channel"
-              value={channel}
-              onChange={(e) => setChannel(e.target.value)}
-              sx={{ width: 200 }}
-            />
+            {isAdmin ? (
+              <TextField
+                size="small"
+                label="Channel"
+                value={channel}
+                onChange={(e) => setChannel(e.target.value)}
+                sx={{ width: 200 }}
+              />
+            ) : (
+              <FormControl size="small" sx={{ width: 200 }}>
+                <InputLabel>Channel</InputLabel>
+                <Select
+                  value={channel}
+                  label="Channel"
+                  onChange={(e) => setChannel(e.target.value)}
+                >
+                  <MenuItem value="support-channel">Support Channel</MenuItem>
+                  <MenuItem value="support-queue">Support Queue</MenuItem>
+                </Select>
+              </FormControl>
+            )}
             <Button variant="outlined" onClick={loadMessages}>Load</Button>
             {loading && <Chip label="Loading..." size="small" />}
           </Box>
@@ -159,13 +199,15 @@ export default function SupportChat() {
           <Divider sx={{ mb: 2 }} />
 
           <Box sx={{ display: "flex", gap: 1 }}>
-            <TextField
-              size="small"
-              label="To"
-              value={recipient}
-              onChange={(e) => setRecipient(e.target.value)}
-              sx={{ width: 150 }}
-            />
+            {isAdmin && (
+              <TextField
+                size="small"
+                label="To"
+                value={recipient}
+                onChange={(e) => setRecipient(e.target.value)}
+                sx={{ width: 150 }}
+              />
+            )}
             <TextField
               fullWidth
               size="small"
@@ -181,7 +223,7 @@ export default function SupportChat() {
         </Paper>
       )}
 
-      {tab === 1 && (
+      {tab === 1 && isAdmin && (
         <Paper sx={{ p: 3 }} variant="outlined">
           <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 2 }}>
             <EmailIcon color="primary" />

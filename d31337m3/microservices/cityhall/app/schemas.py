@@ -118,6 +118,7 @@ class UserAdmin(UserPublic):
     is_employee: bool = False
     is_admin: bool = False
     is_super_admin: bool = False
+    is_suspended: bool = False
     founder_subscript: str | None = None
     referral_code: str | None = None
     referred_by_code: str | None = None
@@ -125,6 +126,26 @@ class UserAdmin(UserPublic):
     dob: date | None = None
     created_at: datetime | None = None
     updated_at: datetime | None = None
+
+
+class SuspendRequest(BaseModel):
+    reason: str | None = None
+
+
+class AdminCreateUserRequest(BaseModel):
+    username: str = Field(..., min_length=3, max_length=100, pattern=r"^[a-zA-Z0-9_]+$")
+    email: EmailStr
+    password: str = Field(..., min_length=8, max_length=128)
+    first_name: str = Field(..., min_length=1, max_length=100)
+    last_name: str = Field(..., min_length=1, max_length=100)
+    is_nodeop: bool = False
+    is_tech_op: bool = False
+    is_chat_op: bool = False
+    is_user: bool = True
+    is_employee: bool = False
+    is_admin: bool = False
+    is_super_admin: bool = False
+    dob: date | None = None
 
 
 class AdminUserUpdate(BaseModel):

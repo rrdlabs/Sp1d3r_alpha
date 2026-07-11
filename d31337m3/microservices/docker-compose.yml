@@ -83,8 +83,28 @@ services:
     depends_on:
       - director
 
+  banker:
+    build:
+      context: ./banker
+    ports:
+      - "8700:8700"
+    environment:
+      BANKER_PORT: "8700"
+      STRIPE_SECRET_KEY: "${STRIPE_SECRET_KEY:-}"
+      STRIPE_WEBHOOK_SECRET: "${STRIPE_WEBHOOK_SECRET:-}"
+      FRONTEND_URL: "https://d31337m3.com"
+      CITYHALL_URL: "http://host.docker.internal:8000"
+      INBOXER_URL: "http://inboxer:8300"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      - inboxer
+    volumes:
+      - banker-data:/data
+
 volumes:
   director-data:
   picaso-data:
   historian-data:
   inboxer-data:
+  banker-data:

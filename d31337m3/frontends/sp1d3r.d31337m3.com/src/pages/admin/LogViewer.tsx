@@ -11,6 +11,9 @@ import {
   MenuItem,
   Alert,
   CircularProgress,
+  Switch,
+  FormControlLabel,
+  Chip,
 } from "@mui/material"
 import RefreshIcon from "@mui/icons-material/Refresh"
 import TerminalIcon from "@mui/icons-material/Terminal"
@@ -33,6 +36,7 @@ export default function LogViewer() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
   const [lineCount, setLineCount] = useState(50)
+  const [liveView, setLiveView] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
 
   const loadLogs = async () => {
@@ -48,7 +52,13 @@ export default function LogViewer() {
     setLoading(false)
   }
 
-  useEffect(() => { loadLogs() }, [selected])
+  useEffect(() => {
+    loadLogs()
+    const interval = setInterval(() => {
+      loadLogs()
+    }, liveView ? 2000 : 15000)
+    return () => clearInterval(interval)
+  }, [selected, liveView])
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }) }, [lines])
 
   return (
@@ -71,6 +81,11 @@ export default function LogViewer() {
             </Select>
           </FormControl>
           <Button startIcon={<RefreshIcon />} onClick={loadLogs}>Refresh</Button>
+          <FormControlLabel
+            control={<Switch size="small" checked={liveView} onChange={(e) => setLiveView(e.target.checked)} />}
+            label="Live View"
+          />
+          {liveView && <Chip label="Auto-refreshing" size="small" color="success" variant="outlined" />}
         </Box>
       </Box>
 

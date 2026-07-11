@@ -10,12 +10,17 @@ import Login from "./pages/Login"
 import Register from "./pages/Register"
 import UserDashboard from "./pages/dashboard/UserDashboard"
 import UserSettings from "./pages/dashboard/UserSettings"
+import SubscriptionOnboarding from "./pages/dashboard/SubscriptionOnboarding"
 import AdminDashboard from "./pages/admin/AdminDashboard"
 import UserManagement from "./pages/admin/UserManagement"
 import ServiceMonitor from "./pages/admin/ServiceMonitor"
+import PlatformHealth from "./pages/admin/PlatformHealth"
 import BlockchainDetails from "./pages/admin/BlockchainDetails"
 import LogViewer from "./pages/admin/LogViewer"
 import EmailSettings from "./pages/admin/EmailSettings"
+import NetworkConfig from "./pages/admin/NetworkConfig"
+import PricingTiers from "./pages/admin/PricingTiers"
+import PaymentProcessing from "./pages/admin/PaymentProcessing"
 import SupportChat from "./pages/support/SupportChat"
 
 export default function App() {
@@ -45,12 +50,17 @@ export default function App() {
               <Route path="/register" element={<Register />} />
               <Route path="/dashboard" element={<AuthGuard><UserDashboard /></AuthGuard>} />
               <Route path="/dashboard/settings" element={<AuthGuard><UserSettings /></AuthGuard>} />
+              <Route path="/dashboard/subscribe" element={<AuthGuard><SubscriptionOnboarding /></AuthGuard>} />
               <Route path="/admin" element={<AuthGuard><AdminDashboard /></AuthGuard>} />
               <Route path="/admin/users" element={<AuthGuard><UserManagement /></AuthGuard>} />
               <Route path="/admin/services" element={<AuthGuard><ServiceMonitor /></AuthGuard>} />
+              <Route path="/admin/health" element={<AuthGuard><PlatformHealth /></AuthGuard>} />
               <Route path="/admin/blockchain" element={<AuthGuard><BlockchainDetails /></AuthGuard>} />
               <Route path="/admin/logs" element={<AuthGuard><LogViewer /></AuthGuard>} />
               <Route path="/admin/email" element={<AuthGuard><EmailSettings /></AuthGuard>} />
+              <Route path="/admin/network" element={<AuthGuard><NetworkConfig /></AuthGuard>} />
+              <Route path="/admin/pricing" element={<AuthGuard><PricingTiers /></AuthGuard>} />
+              <Route path="/admin/payments" element={<AuthGuard><PaymentProcessing /></AuthGuard>} />
               <Route path="/support" element={<AuthGuard><SupportChat /></AuthGuard>} />
             </Route>
           </Routes>

@@ -7,6 +7,7 @@ const API_BASES = {
   picaso: import.meta.env.VITE_PICASO_URL || "http://localhost:8500",
   sp1d3r: import.meta.env.VITE_SP1D3R_URL || "http://localhost:9000",
   spiderwire: import.meta.env.VITE_SPIDERWIRE_URL || "http://localhost:8600",
+  banker: import.meta.env.VITE_BANKER_URL || "http://localhost:8700",
 }
 
 export type ServiceName = keyof typeof API_BASES

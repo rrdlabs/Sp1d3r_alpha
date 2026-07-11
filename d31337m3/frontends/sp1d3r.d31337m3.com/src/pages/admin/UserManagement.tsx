@@ -26,6 +26,9 @@ import {
 import SearchIcon from "@mui/icons-material/Search"
 import EditIcon from "@mui/icons-material/Edit"
 import DeleteIcon from "@mui/icons-material/Delete"
+import PersonAddIcon from "@mui/icons-material/PersonAdd"
+import BlockIcon from "@mui/icons-material/Block"
+import CheckCircleIcon from "@mui/icons-material/CheckCircle"
 import { apiRequest } from "../../api/client"
 
 interface AdminUser {
@@ -41,8 +44,24 @@ interface AdminUser {
   is_chat_op: boolean
   is_user: boolean
   is_employee: boolean
+  is_suspended: boolean
   created_at: string
   signup_date: string
+}
+
+const emptyNewUser = {
+  username: "",
+  email: "",
+  password: "",
+  first_name: "",
+  last_name: "",
+  dob: "",
+  is_admin: false,
+  is_super_admin: false,
+  is_nodeop: false,
+  is_tech_op: false,
+  is_chat_op: false,
+  is_employee: false,
 }
 
 export default function UserManagement() {
@@ -52,6 +71,8 @@ export default function UserManagement() {
   const [page, setPage] = useState(1)
   const [selected, setSelected] = useState<AdminUser | null>(null)
   const [editFields, setEditFields] = useState<Partial<AdminUser>>({})
+  const [createOpen, setCreateOpen] = useState(false)
+  const [newUser, setNewUser] = useState(emptyNewUser)
   const [msg, setMsg] = useState("")
   const [error, setError] = useState("")
 
@@ -69,7 +90,9 @@ export default function UserManagement() {
     }
   }
 
-  useEffect(() => { loadUsers() }, [])
+  useEffect(() => {
+    loadUsers()
+  }, [])
 
   const handleSearch = () => {
     setPage(1)
@@ -114,11 +137,65 @@ export default function UserManagement() {
     }
   }
 
+  const handleCreate = async () => {
+    setError("")
+    const res = await apiRequest("cityhall", "POST", "/admin/users", {
+      username: newUser.username,
+      email: newUser.email,
+      password: newUser.password,
+      first_name: newUser.first_name,
+      last_name: newUser.last_name,
+      dob: newUser.dob || undefined,
+      is_admin: newUser.is_admin,
+      is_super_admin: newUser.is_super_admin,
+      is_nodeop: newUser.is_nodeop,
+      is_tech_op: newUser.is_tech_op,
+      is_chat_op: newUser.is_chat_op,
+      is_employee: newUser.is_employee,
+    })
+    if (res.ok) {
+      setMsg(`Created user ${newUser.username}`)
+      setCreateOpen(false)
+      setNewUser({ ...emptyNewUser })
+      loadUsers(query || undefined, page)
+    } else {
+      setError("Failed to create user")
+    }
+  }
+
+  const handleSuspend = async (user: AdminUser) => {
+    if (!confirm(`Suspend user ${user.username}?`)) return
+    const res = await apiRequest("cityhall", "POST", `/admin/users/${user.id}/suspend`, {
+      reason: "Admin action",
+    })
+    if (res.ok) {
+      setMsg(`Suspended ${user.username}`)
+      loadUsers(query || undefined, page)
+    } else {
+      setError("Suspend failed")
+    }
+  }
+
+  const handleUnsuspend = async (user: AdminUser) => {
+    const res = await apiRequest("cityhall", "POST", `/admin/users/${user.id}/unsuspend`)
+    if (res.ok) {
+      setMsg(`Unsuspended ${user.username}`)
+      loadUsers(query || undefined, page)
+    } else {
+      setError("Unsuspend failed")
+    }
+  }
+
   return (
     <Container maxWidth="lg">
-      <Typography variant="h4" gutterBottom sx={{ fontFamily: "monospace" }}>
-        User Management
-      </Typography>
+      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 2 }}>
+        <Typography variant="h4" sx={{ fontFamily: "monospace" }}>
+          User Management
+        </Typography>
+        <Button variant="contained" startIcon={<PersonAddIcon />} onClick={() => setCreateOpen(true)}>
+          Create User
+        </Button>
+      </Box>
       <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
         {total} total users
       </Typography>
@@ -157,7 +234,12 @@ export default function UserManagement() {
           <TableBody>
             {users.map((u) => (
               <TableRow key={u.id} hover>
-                <TableCell>{u.username}</TableCell>
+                <TableCell>
+                  {u.username}
+                  {u.is_suspended && (
+                    <Chip label="SUSPENDED" size="small" color="error" sx={{ ml: 1 }} />
+                  )}
+                </TableCell>
                 <TableCell>{u.first_name} {u.last_name}</TableCell>
                 <TableCell>{u.email}</TableCell>
                 <TableCell>
@@ -170,8 +252,21 @@ export default function UserManagement() {
                 </TableCell>
                 <TableCell>{u.created_at ? new Date(u.created_at).toLocaleDateString() : "—"}</TableCell>
                 <TableCell align="right">
-                  <IconButton size="small" onClick={() => handleEdit(u)}><EditIcon fontSize="small" /></IconButton>
-                  <IconButton size="small" color="error" onClick={() => handleDelete(u)}><DeleteIcon fontSize="small" /></IconButton>
+                  <IconButton size="small" onClick={() => handleEdit(u)} title="Edit">
+                    <EditIcon fontSize="small" />
+                  </IconButton>
+                  {u.is_suspended ? (
+                    <IconButton size="small" color="success" onClick={() => handleUnsuspend(u)} title="Unsuspend">
+                      <CheckCircleIcon fontSize="small" />
+                    </IconButton>
+                  ) : (
+                    <IconButton size="small" color="warning" onClick={() => handleSuspend(u)} title="Suspend">
+                      <BlockIcon fontSize="small" />
+                    </IconButton>
+                  )}
+                  <IconButton size="small" color="error" onClick={() => handleDelete(u)} title="Delete">
+                    <DeleteIcon fontSize="small" />
+                  </IconButton>
                 </TableCell>
               </TableRow>
             ))}
@@ -235,6 +330,59 @@ export default function UserManagement() {
           </DialogActions>
         </Dialog>
       )}
+
+      <Dialog open={createOpen} onClose={() => setCreateOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Create User</DialogTitle>
+        <DialogContent>
+          <Grid container spacing={2} sx={{ mt: 1 }}>
+            <Grid size={{ xs: 6 }}>
+              <TextField fullWidth size="small" label="Username" value={newUser.username} onChange={(e) => setNewUser({ ...newUser, username: e.target.value })} />
+            </Grid>
+            <Grid size={{ xs: 6 }}>
+              <TextField fullWidth size="small" label="Email" value={newUser.email} onChange={(e) => setNewUser({ ...newUser, email: e.target.value })} />
+            </Grid>
+            <Grid size={{ xs: 12 }}>
+              <TextField fullWidth size="small" label="Password" type="password" value={newUser.password} onChange={(e) => setNewUser({ ...newUser, password: e.target.value })} />
+            </Grid>
+            <Grid size={{ xs: 6 }}>
+              <TextField fullWidth size="small" label="First Name" value={newUser.first_name} onChange={(e) => setNewUser({ ...newUser, first_name: e.target.value })} />
+            </Grid>
+            <Grid size={{ xs: 6 }}>
+              <TextField fullWidth size="small" label="Last Name" value={newUser.last_name} onChange={(e) => setNewUser({ ...newUser, last_name: e.target.value })} />
+            </Grid>
+            <Grid size={{ xs: 12 }}>
+              <TextField fullWidth size="small" label="Date of Birth" type="date" slotProps={{ inputLabel: { shrink: true } }} value={newUser.dob} onChange={(e) => setNewUser({ ...newUser, dob: e.target.value })} />
+            </Grid>
+            <Grid size={{ xs: 12 }}>
+              <Typography variant="subtitle2" gutterBottom>Roles</Typography>
+            </Grid>
+            <Grid size={{ xs: 6 }}>
+              <FormControlLabel control={<Switch checked={newUser.is_admin} onChange={(e) => setNewUser({ ...newUser, is_admin: e.target.checked })} />} label="Admin" />
+            </Grid>
+            <Grid size={{ xs: 6 }}>
+              <FormControlLabel control={<Switch checked={newUser.is_super_admin} onChange={(e) => setNewUser({ ...newUser, is_super_admin: e.target.checked })} />} label="Super Admin" />
+            </Grid>
+            <Grid size={{ xs: 6 }}>
+              <FormControlLabel control={<Switch checked={newUser.is_nodeop} onChange={(e) => setNewUser({ ...newUser, is_nodeop: e.target.checked })} />} label="Node Operator" />
+            </Grid>
+            <Grid size={{ xs: 6 }}>
+              <FormControlLabel control={<Switch checked={newUser.is_tech_op} onChange={(e) => setNewUser({ ...newUser, is_tech_op: e.target.checked })} />} label="Tech Support" />
+            </Grid>
+            <Grid size={{ xs: 6 }}>
+              <FormControlLabel control={<Switch checked={newUser.is_chat_op} onChange={(e) => setNewUser({ ...newUser, is_chat_op: e.target.checked })} />} label="Chat Support" />
+            </Grid>
+            <Grid size={{ xs: 6 }}>
+              <FormControlLabel control={<Switch checked={newUser.is_employee} onChange={(e) => setNewUser({ ...newUser, is_employee: e.target.checked })} />} label="Employee" />
+            </Grid>
+          </Grid>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setCreateOpen(false)}>Cancel</Button>
+          <Button variant="contained" onClick={handleCreate} disabled={!newUser.username || !newUser.email || !newUser.password}>
+            Create
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Container>
   )
 }

@@ -138,6 +138,40 @@ class DirectorHandler(CORSMixin, BaseHTTPRequestHandler):
             log_lines = _read_service_logs(service_name, line_count)
             self._send(200, {"lines": log_lines})
             return
+        if path == "/platform-health":
+            SERVICE_HEALTH_MAP = {
+                "cityhall": "http://172.17.0.1:8000/health",
+                "historian": "http://historian:8100/health",
+                "lawyer": "http://lawyer:8200/health",
+                "inboxer": "http://inboxer:8300/health",
+                "director": "http://director:8400/health",
+                "picaso": "http://picaso:8500/health",
+                "spiderwire": "http://spiderwire:8600/health",
+                "sp1d3r": "http://sp1d3r:9000/health",
+            }
+            results = {}
+            for svc_name, url in SERVICE_HEALTH_MAP.items():
+                try:
+                    req = urllib.request.Request(url)
+                    resp = urllib.request.urlopen(req, timeout=3)
+                    data = json.loads(resp.read().decode("utf-8"))
+                    results[svc_name] = {"healthy": True, "status": data.get("status", "ok"), "data": data}
+                except Exception as e:
+                    results[svc_name] = {"healthy": False, "status": "unreachable", "error": str(e)}
+            healthy_count = sum(1 for r in results.values() if r["healthy"])
+            self._send(200, {
+                "services": results,
+                "total": len(results),
+                "healthy": healthy_count,
+                "degraded": len(results) - healthy_count,
+                "platform_status": "healthy" if healthy_count == len(results) else "degraded" if healthy_count > 0 else "offline",
+            })
+            return
+        if path == "/blacklist":
+            store = _load_store()
+            blacklist = store.get("blacklist", [])
+            self._send(200, {"blacklist": blacklist})
+            return
         self._send(404, {"error": "not_found"})
 
     def do_POST(self) -> None:  # noqa: N802
@@ -228,6 +262,38 @@ class DirectorHandler(CORSMixin, BaseHTTPRequestHandler):
                     store["alerts"].append({"service": service["name"], "message": "restarting after failures", "at": int(time.time())})
             _save_store(store)
             self._send(200, {"status": "reconciled", "services": list(store["services"].values())})
+            return
+        if path == "/blacklist":
+            payload = self._read_json()
+            store = _load_store()
+            blacklist = store.setdefault("blacklist", [])
+            entry = {
+                "id": len(blacklist) + 1,
+                "ip_address": payload["ip_address"],
+                "reason": payload.get("reason", ""),
+                "added_by": payload.get("added_by", "admin"),
+                "shared_with_nodes": payload.get("shared_with_nodes", True),
+                "created_at": int(time.time()),
+            }
+            blacklist.append(entry)
+            _save_store(store)
+            self._send(201, {"status": "added", "entry": entry})
+            return
+        self._send(404, {"error": "not_found"})
+
+    def do_DELETE(self) -> None:  # noqa: N802
+        path = self._normal_path()
+        if path.startswith("/blacklist/"):
+            try:
+                entry_id = int(path.split("/")[2])
+            except (ValueError, IndexError):
+                self._send(400, {"error": "invalid_id"})
+                return
+            store = _load_store()
+            blacklist = store.get("blacklist", [])
+            store["blacklist"] = [e for e in blacklist if e.get("id") != entry_id]
+            _save_store(store)
+            self._send(200, {"status": "removed"})
             return
         self._send(404, {"error": "not_found"})
 

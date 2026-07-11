@@ -1,13 +1,20 @@
 import math
+import uuid as _uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select, func, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.auth import get_current_user, require_admin
+from app.auth import get_current_user, hash_password, require_admin
 from app.database import get_session
 from app.models import User
-from app.schemas import AdminUserUpdate, PaginatedUsers, UserAdmin
+from app.schemas import (
+    AdminCreateUserRequest,
+    AdminUserUpdate,
+    PaginatedUsers,
+    SuspendRequest,
+    UserAdmin,
+)
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -128,6 +135,100 @@ async def delete_user(
     await session.delete(user)
 
 
+@router.post("/users/{user_id}/suspend")
+async def suspend_user(
+    user_id: str,
+    body: SuspendRequest = SuspendRequest(),
+    _: User = Depends(require_admin),
+    session: AsyncSession = Depends(get_session),
+):
+    from uuid import UUID
+
+    try:
+        uid = UUID(user_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid user ID")
+
+    result = await session.execute(select(User).where(User.id == uid))
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    user.is_suspended = True
+    user.suspended_reason = body.reason
+    await session.flush()
+    return {"status": "suspended", "user_id": str(user_id)}
+
+
+@router.post("/users/{user_id}/unsuspend")
+async def unsuspend_user(
+    user_id: str,
+    _: User = Depends(require_admin),
+    session: AsyncSession = Depends(get_session),
+):
+    from uuid import UUID
+
+    try:
+        uid = UUID(user_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid user ID")
+
+    result = await session.execute(select(User).where(User.id == uid))
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    user.is_suspended = False
+    user.suspended_reason = None
+    await session.flush()
+    return {"status": "unsuspended", "user_id": str(user_id)}
+
+
+_invitation_tokens: dict[str, dict] = {}
+
+
+@router.get("/users/create-token")
+async def create_invitation_token(
+    _: User = Depends(require_admin),
+):
+    token = str(_uuid.uuid4())
+    _invitation_tokens[token] = {"created_by": "admin"}
+    return {"token": token}
+
+
+@router.post("/users", status_code=201)
+async def admin_create_user(
+    body: AdminCreateUserRequest,
+    _: User = Depends(require_admin),
+    session: AsyncSession = Depends(get_session),
+) -> UserAdmin:
+    existing = await session.execute(select(User).where(User.username == body.username))
+    if existing.scalar_one_or_none():
+        raise HTTPException(status_code=409, detail="Username already taken")
+    existing = await session.execute(select(User).where(User.email == body.email))
+    if existing.scalar_one_or_none():
+        raise HTTPException(status_code=409, detail="Email already registered")
+
+    user = User(
+        username=body.username,
+        email=body.email,
+        password_hash=hash_password(body.password),
+        first_name=body.first_name,
+        last_name=body.last_name,
+        dob=body.dob,
+        is_nodeop=body.is_nodeop,
+        is_tech_op=body.is_tech_op,
+        is_chat_op=body.is_chat_op,
+        is_user=body.is_user,
+        is_employee=body.is_employee,
+        is_admin=body.is_admin,
+        is_super_admin=body.is_super_admin,
+    )
+    session.add(user)
+    await session.flush()
+    return _user_to_admin(user)
+
+
 def _user_to_admin(u: User) -> UserAdmin:
     return UserAdmin(
         id=u.id,
@@ -145,6 +246,7 @@ def _user_to_admin(u: User) -> UserAdmin:
         is_employee=u.is_employee,
         is_admin=u.is_admin,
         is_super_admin=u.is_super_admin,
+        is_suspended=u.is_suspended,
         wallet_address=u.wallet_address,
         signup_date=u.signup_date,
         founder_subscript=u.founder_subscript,
