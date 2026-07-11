@@ -28,6 +28,7 @@ import PaymentIcon from "@mui/icons-material/Payment"
 import CurrencyBitcoinIcon from "@mui/icons-material/CurrencyBitcoin"
 import CheckCircleIcon from "@mui/icons-material/CheckCircle"
 import SendIcon from "@mui/icons-material/Send"
+import AccountTreeIcon from "@mui/icons-material/AccountTree"
 import { apiRequest } from "../../api/client"
 import { useAuth } from "../../context/AuthContext"
 
@@ -49,6 +50,8 @@ interface SubscriptionResponse {
   networks?: string[]
   token?: string
   amount_cents?: number
+  nodeop_free?: boolean
+  message?: string
 }
 
 interface VerifyResponse {
@@ -57,6 +60,14 @@ interface VerifyResponse {
   failed_attempts?: number
   suspended?: boolean
   error?: string
+  message?: string
+}
+
+interface SubStatus {
+  is_nodeop: boolean
+  has_active_sub: boolean
+  active_subscription: { id: string; status: string; tier_id: string } | null
+  pending_subscription: { id: string; status: string } | null
 }
 
 const steps = ["Choose Plan", "Payment Method", "Confirm & Pay"]
@@ -92,6 +103,23 @@ export default function SubscriptionOnboarding() {
   const [verifying, setVerifying] = useState(false)
   const [verifyResult, setVerifyResult] = useState<VerifyResponse | null>(null)
 
+  const [nodeOpStatus, setNodeOpStatus] = useState<SubStatus | null>(null)
+  const [checkingNodeOp, setCheckingNodeOp] = useState(true)
+
+  useEffect(() => {
+    if (!userId) return
+    setCheckingNodeOp(true)
+    apiRequest<SubStatus>("banker", "GET", `/subscription-status?user_id=${userId}`).then((res) => {
+      if (res.ok) {
+        setNodeOpStatus(res.data)
+        if (res.data.has_active_sub) {
+          setPaid(true)
+        }
+      }
+      setCheckingNodeOp(false)
+    }).catch(() => setCheckingNodeOp(false))
+  }, [userId])
+
   useEffect(() => {
     setLoading(true)
     apiRequest<{ tiers: Tier[] }>("banker", "GET", "/tiers").then((res) => {
@@ -100,6 +128,29 @@ export default function SubscriptionOnboarding() {
       setLoading(false)
     }).catch(() => { setError("Failed to load tiers"); setLoading(false) })
   }, [])
+
+  const handleNodeopSubscribe = async () => {
+    if (!userId || !nodeOpStatus) return
+    const proTier = tiers.find((t) => t.name.toLowerCase().includes("pro") || t.name.toLowerCase().includes("professional"))
+    if (!proTier) {
+      setError("Professional tier not found")
+      return
+    }
+    setSubmitting(true)
+    setError(null)
+    const res = await apiRequest<SubscriptionResponse>("banker", "POST", "/subscriptions/create", {
+      user_id: userId,
+      tier_id: proTier.id,
+      payment_method: "nodeop_free",
+    })
+    setSubmitting(false)
+    if (res.ok && res.data.nodeop_free) {
+      setPaid(true)
+      setResult(res.data)
+    } else {
+      setError(res.data.message || "Failed to activate node operator subscription")
+    }
+  }
 
   const handleConfirm = async () => {
     if (!selectedTier || !userId) return
@@ -114,6 +165,7 @@ export default function SubscriptionOnboarding() {
     if (res.ok) {
       setResult(res.data)
       if (res.data.checkout_url) { window.location.href = res.data.checkout_url; return }
+      if (res.data.nodeop_free) { setPaid(true); return }
     } else {
       setError("Failed to create subscription")
     }
@@ -139,7 +191,7 @@ export default function SubscriptionOnboarding() {
         setError(
           res.data.suspended
             ? "Payment verification failed. Account suspended after 3 failed attempts."
-            : `Verification failed. ${res.data.failed_attempts ?? 0}/3 attempts used.`
+            : `Verification failed. ${res.data.failed_attempts ?? 0}/3 attempts used. ${res.data.message || ""}`
         )
       }
     } else {
@@ -174,6 +226,42 @@ export default function SubscriptionOnboarding() {
     }
   }
 
+  const renderNodeOpBanner = () => {
+    if (!nodeOpStatus?.is_nodeop) return null
+    if (nodeOpStatus.has_active_sub) {
+      return (
+        <Alert severity="success" icon={<AccountTreeIcon />} sx={{ mb: 3 }}>
+          <Typography variant="h6" gutterBottom>Node Operator Active</Typography>
+          <Typography variant="body2">
+            You're an active node operator. Your Professional subscription is complimentary.
+          </Typography>
+          {nodeOpStatus.active_subscription && (
+            <Typography variant="caption" sx={{ display: "block", mt: 1 }}>
+              Subscription ID: {nodeOpStatus.active_subscription.id}
+            </Typography>
+          )}
+        </Alert>
+      )
+    }
+    return (
+      <Alert severity="info" icon={<AccountTreeIcon />} sx={{ mb: 3 }}>
+        <Typography variant="h6" gutterBottom>Node Operator Benefit</Typography>
+        <Typography variant="body2">
+          As an active node operator, you're eligible for a complimentary Professional subscription.
+        </Typography>
+        <Button
+          variant="contained"
+          sx={{ mt: 2 }}
+          startIcon={submitting ? <CircularProgress size={20} /> : <AccountTreeIcon />}
+          onClick={handleNodeopSubscribe}
+          disabled={submitting}
+        >
+          {submitting ? "Activating..." : "Activate Free Pro Subscription"}
+        </Button>
+      </Alert>
+    )
+  }
+
   const renderChoosePlan = () => {
     if (loading) return <Box sx={{ display: "flex", justifyContent: "center", py: 6 }}><CircularProgress /></Box>
     if (tiers.length === 0) return <Alert severity="info">No subscription tiers available.</Alert>
@@ -182,25 +270,37 @@ export default function SubscriptionOnboarding() {
         {tiers.map((tier) => {
           const isSelected = selectedTier?.id === tier.id
           const features = parseFeatures(tier.features)
+          const isPro = nodeOpStatus?.is_nodeop && (tier.name.toLowerCase().includes("pro") || tier.name.toLowerCase().includes("professional"))
           return (
             <Grid size={{ xs: 12, sm: 6, md: 4 }} key={tier.id}>
               <Card
                 variant="outlined"
                 sx={{
                   height: "100%", display: "flex", flexDirection: "column",
-                  borderColor: isSelected ? "primary.main" : undefined,
-                  borderWidth: isSelected ? 2 : 1, boxShadow: isSelected ? 4 : 0,
+                  borderColor: isSelected ? "primary.main" : isPro ? "success.main" : undefined,
+                  borderWidth: isSelected ? 2 : isPro ? 2 : 1,
+                  boxShadow: isSelected ? 4 : isPro ? 2 : 0,
                   cursor: "pointer", "&:hover": { boxShadow: 2 },
+                  position: "relative",
                 }}
                 onClick={() => setSelectedTier(tier)}
               >
+                {isPro && (
+                  <Alert severity="success" sx={{ borderRadius: 0, fontSize: "0.75rem" }}>
+                    Free for node operators
+                  </Alert>
+                )}
                 <CardContent sx={{ flexGrow: 1 }}>
                   <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 1 }}>
                     <Typography variant="h6" sx={{ fontWeight: 700 }}>{tier.name}</Typography>
                     {isSelected && <CheckCircleIcon color="primary" />}
                   </Box>
                   <Typography variant="h4" color="primary" gutterBottom>
-                    {"$" + (tier.price_cents / 100).toFixed(2)}/{tier.interval}
+                    {nodeOpStatus?.is_nodeop && isPro ? (
+                      <><s style={{ opacity: 0.5 }}>{"$" + (tier.price_cents / 100).toFixed(2)}</s> $0.00</>
+                    ) : (
+                      "$" + (tier.price_cents / 100).toFixed(2)
+                    )}/{tier.interval}
                   </Typography>
                   <Divider sx={{ my: 1.5 }} />
                   <Box component="ul" sx={{ pl: 2, m: 0 }}>
@@ -400,33 +500,48 @@ export default function SubscriptionOnboarding() {
     <Container maxWidth="md" sx={{ py: 4 }}>
       <Typography variant="h4" gutterBottom sx={{ fontWeight: 700, fontFamily: "monospace" }}>Subscribe</Typography>
       <Typography variant="body1" color="text.secondary" sx={{ mb: 4 }}>Choose a plan and payment method to get started.</Typography>
-      <Stepper activeStep={Math.min(activeStep, steps.length - 1)} sx={{ mb: 4 }}>
-        {steps.map((label) => <Step key={label}><StepLabel>{label}</StepLabel></Step>)}
-      </Stepper>
-      {error && <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError(null)}>{error}</Alert>}
-      <Box sx={{ mb: 4 }}>
-        {activeStep === 0 && renderChoosePlan()}
-        {activeStep === 1 && renderPaymentMethod()}
-        {activeStep === 2 && renderConfirm()}
-      </Box>
-      {showSuccess ? (
-        <Alert severity="success" icon={<CheckCircleIcon />} sx={{ mb: 2 }}>
-          <Typography variant="h6" gutterBottom>You're all set!</Typography>
-          <Typography variant="body2">Your subscription has been created. You will receive a confirmation shortly.</Typography>
-        </Alert>
+      {checkingNodeOp ? (
+        <Box sx={{ display: "flex", justifyContent: "center", py: 6 }}><CircularProgress /></Box>
       ) : (
-        <Box sx={{ display: "flex", justifyContent: "space-between" }}>
-          <Button disabled={activeStep === 0} onClick={() => setActiveStep((s) => s - 1)}>Back</Button>
-          {activeStep < steps.length - 1 ? (
-            <Button variant="contained" disabled={(activeStep === 0 && !selectedTier) || loading} onClick={() => setActiveStep((s) => s + 1)}>Next</Button>
+        <>
+          {renderNodeOpBanner()}
+          {!paid && (
+            <Stepper activeStep={Math.min(activeStep, steps.length - 1)} sx={{ mb: 4 }}>
+              {steps.map((label) => <Step key={label}><StepLabel>{label}</StepLabel></Step>)}
+            </Stepper>
+          )}
+          {error && <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError(null)}>{error}</Alert>}
+          <Box sx={{ mb: 4 }}>
+            {!paid && activeStep === 0 && renderChoosePlan()}
+            {!paid && activeStep === 1 && renderPaymentMethod()}
+            {!paid && activeStep === 2 && renderConfirm()}
+          </Box>
+          {showSuccess ? (
+            <Alert severity="success" icon={<CheckCircleIcon />} sx={{ mb: 2 }}>
+              <Typography variant="h6" gutterBottom>You're all set!</Typography>
+              <Typography variant="body2">
+                {nodeOpStatus?.is_nodeop
+                  ? "Your complimentary node operator subscription is active."
+                  : "Your subscription has been created. You will receive a confirmation shortly."}
+              </Typography>
+            </Alert>
           ) : (
-            !result && (
-              <Button variant="contained" disabled={submitting || !selectedTier} onClick={handleConfirm}>
-                {submitting ? <CircularProgress size={24} /> : "Confirm & Pay"}
-              </Button>
+            !paid && (
+              <Box sx={{ display: "flex", justifyContent: "space-between" }}>
+                <Button disabled={activeStep === 0} onClick={() => setActiveStep((s) => s - 1)}>Back</Button>
+                {activeStep < steps.length - 1 ? (
+                  <Button variant="contained" disabled={(activeStep === 0 && !selectedTier) || loading} onClick={() => setActiveStep((s) => s + 1)}>Next</Button>
+                ) : (
+                  !result && (
+                    <Button variant="contained" disabled={submitting || !selectedTier} onClick={handleConfirm}>
+                      {submitting ? <CircularProgress size={24} /> : "Confirm & Pay"}
+                    </Button>
+                  )
+                )}
+              </Box>
             )
           )}
-        </Box>
+        </>
       )}
     </Container>
   )

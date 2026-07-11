@@ -368,6 +368,46 @@ class BankerHandler(CORSMixin, BaseHTTPRequestHandler):
             conn.close()
             self._send_json(200, {"blacklist": rows_to_list(rows)})
 
+        elif path == "/node-check":
+            user_id = params.get("user_id", [None])[0]
+            if not user_id:
+                self._send_json(400, {"error": "user_id required"})
+                return
+            try:
+                resp = requests.get(f"{CITYHALL_URL}/internal/node-check", params={"user_id": user_id}, timeout=5)
+                data = resp.json()
+                self._send_json(200, data)
+            except Exception as e:
+                self._send_json(502, {"error": f"cityhall_unreachable: {str(e)}"})
+
+        elif path == "/subscription-status":
+            user_id = params.get("user_id", [None])[0]
+            if not user_id:
+                self._send_json(400, {"error": "user_id required"})
+                return
+            is_nodeop = False
+            try:
+                resp = requests.get(f"{CITYHALL_URL}/internal/node-check", params={"user_id": user_id}, timeout=5)
+                is_nodeop = resp.json().get("is_nodeop", False)
+            except Exception:
+                pass
+            conn = get_db()
+            active_sub = conn.execute(
+                "SELECT * FROM subscriptions WHERE user_id = ? AND status = 'active' ORDER BY created_at DESC LIMIT 1",
+                (user_id,),
+            ).fetchone()
+            pending_sub = conn.execute(
+                "SELECT * FROM subscriptions WHERE user_id = ? AND status LIKE 'pending%' ORDER BY created_at DESC LIMIT 1",
+                (user_id,),
+            ).fetchone()
+            conn.close()
+            self._send_json(200, {
+                "is_nodeop": is_nodeop,
+                "has_active_sub": active_sub is not None,
+                "active_subscription": row_to_dict(active_sub) if active_sub else None,
+                "pending_subscription": row_to_dict(pending_sub) if pending_sub else None,
+            })
+
         else:
             self._send_json(404, {"error": "not found"})
 
@@ -433,6 +473,15 @@ class BankerHandler(CORSMixin, BaseHTTPRequestHandler):
                 self._send_json(400, {"error": "user_id and tier_id required"})
                 return
 
+            is_nodeop = False
+            try:
+                resp = requests.get(f"{CITYHALL_URL}/internal/node-check", params={"user_id": user_id}, timeout=5)
+                is_nodeop = resp.json().get("is_nodeop", False)
+                if is_nodeop:
+                    print(f"[banker] User {user_id} is a node operator — free pro tier")
+            except Exception as e:
+                print(f"[banker] node-check failed: {e}")
+
             conn = get_db()
             tier = conn.execute("SELECT * FROM subscription_tiers WHERE id = ?", (tier_id,)).fetchone()
             if not tier:
@@ -443,6 +492,29 @@ class BankerHandler(CORSMixin, BaseHTTPRequestHandler):
 
             sub_id = str(uuid.uuid4())
             now = datetime.utcnow().isoformat()
+
+            if is_nodeop:
+                end = compute_period_end(tier)
+                conn.execute(
+                    """INSERT INTO subscriptions (id, user_id, tier_id, status, payment_method, current_period_start, current_period_end, created_at)
+                       VALUES (?, ?, ?, 'active', 'nodeop_free', ?, ?, ?)""",
+                    (sub_id, user_id, tier_id, now, now, end.isoformat(), now),
+                )
+                conn.execute(
+                    """INSERT INTO payment_records
+                       (subscription_id, user_id, amount_cents, currency, payment_method, status, provider)
+                       VALUES (?, ?, ?, ?, 'nodeop_free', 'succeeded', 'nodeop_free')""",
+                    (sub_id, user_id, 0, tier.get("currency", "usd")),
+                )
+                conn.commit()
+                conn.close()
+                self._send_json(200, {
+                    "subscription": {"id": sub_id, "status": "active"},
+                    "subscription_id": sub_id,
+                    "nodeop_free": True,
+                    "message": "Free Pro subscription activated for node operator",
+                })
+                return
 
             conn.execute(
                 """INSERT INTO subscriptions (id, user_id, tier_id, status, payment_method, created_at)

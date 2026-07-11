@@ -184,6 +184,71 @@ async def unsuspend_user(
     return {"status": "unsuspended", "user_id": str(user_id)}
 
 
+# ---------------------------------------------------------------------------
+# Node operator management
+# ---------------------------------------------------------------------------
+
+@router.get("/node-operators")
+async def list_node_operators(
+    _: User = Depends(require_admin),
+    session: AsyncSession = Depends(get_session),
+):
+    result = await session.execute(
+        select(User).where(User.is_nodeop == True).order_by(User.created_at.desc())  # noqa: E712
+    )
+    users = result.scalars().all()
+    return {"node_operators": [_user_to_admin(u) for u in users], "count": len(users)}
+
+
+@router.post("/users/{user_id}/set-nodeop")
+async def set_node_operator(
+    user_id: str,
+    body: dict = {},
+    _: User = Depends(require_admin),
+    session: AsyncSession = Depends(get_session),
+):
+    from uuid import UUID
+
+    try:
+        uid = UUID(user_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid user ID")
+
+    result = await session.execute(select(User).where(User.id == uid))
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    user.is_nodeop = True
+    if body.get("node_pubkey"):
+        user.ed25519_public_key = bytes.fromhex(body["node_pubkey"])
+    await session.flush()
+    return {"status": "nodeop_set", "user_id": str(user.id), "is_nodeop": True}
+
+
+@router.post("/users/{user_id}/remove-nodeop")
+async def remove_node_operator(
+    user_id: str,
+    _: User = Depends(require_admin),
+    session: AsyncSession = Depends(get_session),
+):
+    from uuid import UUID
+
+    try:
+        uid = UUID(user_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid user ID")
+
+    result = await session.execute(select(User).where(User.id == uid))
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    user.is_nodeop = False
+    await session.flush()
+    return {"status": "nodeop_removed", "user_id": str(user.id), "is_nodeop": False}
+
+
 _invitation_tokens: dict[str, dict] = {}
 
 

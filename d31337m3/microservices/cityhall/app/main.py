@@ -32,3 +32,31 @@ app.include_router(admin.router)
 @app.get("/health")
 async def health():
     return {"status": "ok", "service": "cityhall"}
+
+
+@app.get("/internal/node-check")
+async def internal_node_check(user_id: str):
+    from uuid import UUID
+    from sqlalchemy import select
+    from app.database import get_session
+    from app.models import User
+
+    try:
+        uid = UUID(user_id)
+    except ValueError:
+        return {"is_nodeop": False, "error": "invalid_user_id"}
+
+    session_factory = get_session
+    async for session in session_factory():
+        result = await session.execute(select(User).where(User.id == uid))
+        user = result.scalar_one_or_none()
+        if not user:
+            return {"is_nodeop": False}
+        return {
+            "is_nodeop": user.is_nodeop,
+            "user_id": str(user.id),
+            "username": user.username,
+            "email": user.email,
+            "first_name": user.first_name,
+            "last_name": user.last_name,
+        }
