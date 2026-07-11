@@ -24,6 +24,7 @@ import Documents from "./pages/admin/Documents"
 import PricingTiers from "./pages/admin/PricingTiers"
 import PaymentProcessing from "./pages/admin/PaymentProcessing"
 import SupportChat from "./pages/support/SupportChat"
+import NodeInfo from "./pages/NodeInfo"
 
 export default function App() {
   const [isDark, setIsDark] = useState(() => {
@@ -66,6 +67,7 @@ export default function App() {
               <Route path="/admin/pricing" element={<AuthGuard><PricingTiers /></AuthGuard>} />
               <Route path="/admin/payments" element={<AuthGuard><PaymentProcessing /></AuthGuard>} />
               <Route path="/support" element={<AuthGuard><SupportChat /></AuthGuard>} />
+              <Route path="/nodes" element={<NodeInfo />} />
             </Route>
           </Routes>
         </AuthProvider>

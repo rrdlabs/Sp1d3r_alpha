@@ -12,6 +12,7 @@ import {
   Divider,
   Switch,
   FormControlLabel,
+  MenuItem,
 } from "@mui/material"
 import EmailIcon from "@mui/icons-material/Email"
 import SaveIcon from "@mui/icons-material/Save"
@@ -25,6 +26,9 @@ interface SmtpSettings {
   password: string
   from_address: string
   use_tls: boolean
+  api_provider: string
+  api_key: string
+  mailgun_domain: string
 }
 
 interface MailRecord {
@@ -42,6 +46,9 @@ export default function EmailSettings() {
     password: "",
     from_address: "",
     use_tls: true,
+    api_provider: "",
+    api_key: "",
+    mailgun_domain: "",
   })
   const [mailHistory, setMailHistory] = useState<MailRecord[]>([])
   const [loading, setLoading] = useState(true)
@@ -119,6 +126,37 @@ export default function EmailSettings() {
             <Button variant="contained" startIcon={<SaveIcon />} onClick={handleSave} disabled={saving}>
               {saving ? "Saving..." : "Save Settings"}
             </Button>
+          </Paper>
+
+          <Paper sx={{ p: 3, mt: 3 }} variant="outlined">
+            <Typography variant="h6" gutterBottom>API Email Relay</Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+              Use when SMTP ports are blocked. API relay takes priority over SMTP.
+            </Typography>
+            <Divider sx={{ mb: 2 }} />
+            <TextField
+              fullWidth size="small" select
+              label="API Provider"
+              value={settings.api_provider || ""}
+              onChange={(e) => setSettings({ ...settings, api_provider: e.target.value })}
+              sx={{ mb: 2 }}
+            >
+              <MenuItem value="">None (SMTP only)</MenuItem>
+              <MenuItem value="sendgrid">SendGrid</MenuItem>
+              <MenuItem value="mailgun">Mailgun</MenuItem>
+              <MenuItem value="resend">Resend</MenuItem>
+            </TextField>
+            {settings.api_provider && (
+              <>
+                <TextField fullWidth size="small" label="API Key" type="password" value={settings.api_key} onChange={(e) => setSettings({ ...settings, api_key: e.target.value })} sx={{ mb: 2 }} placeholder="SG.xxxx or re.xxxx" />
+                {settings.api_provider === "mailgun" && (
+                  <TextField fullWidth size="small" label="Mailgun Domain" value={settings.mailgun_domain} onChange={(e) => setSettings({ ...settings, mailgun_domain: e.target.value })} sx={{ mb: 2 }} placeholder="mg.d31337m3.com" />
+                )}
+                <Button variant="contained" startIcon={<SaveIcon />} onClick={handleSave} disabled={saving}>
+                  {saving ? "Saving..." : "Save API Settings"}
+                </Button>
+              </>
+            )}
           </Paper>
         </Grid>
 

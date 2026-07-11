@@ -31,6 +31,7 @@ import DeleteIcon from "@mui/icons-material/Delete"
 import EditIcon from "@mui/icons-material/Edit"
 import RefreshIcon from "@mui/icons-material/Refresh"
 import UploadIcon from "@mui/icons-material/Upload"
+import DownloadIcon from "@mui/icons-material/Download"
 import SearchIcon from "@mui/icons-material/Search"
 import { apiRequest } from "../../api/client"
 import { useAuth } from "../../context/AuthContext"
@@ -213,6 +214,19 @@ export default function BrokerManagement() {
     }
   }
 
+  const downloadTemplate = () => {
+    const headers = "name,display_name,category,website,email,phone,address,country,state,opt_out_url,notes"
+    const example = "example_broker,Example Broker,data_broker,https://example.com,contact@example.com,+1-555-0100,123 Main St,US,CA,https://example.com/opt-out,Template row — replace with real data"
+    const csv = `${headers}\n${example}\n`
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement("a")
+    a.href = url
+    a.download = "broker_import_template.csv"
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
   const parseCsv = (text: string) => {
     const lines = text.trim().split("\n")
     if (lines.length < 2) {
@@ -316,6 +330,9 @@ export default function BrokerManagement() {
         <Box sx={{ display: "flex", gap: 1 }}>
           <Button startIcon={<RefreshIcon />} onClick={handleRefresh}>
             Refresh
+          </Button>
+          <Button startIcon={<DownloadIcon />} onClick={downloadTemplate}>
+            Download Template
           </Button>
           <Button startIcon={<UploadIcon />} onClick={() => { resetCsvDialog(); setCsvOpen(true) }}>
             CSV Upload
@@ -578,6 +595,9 @@ export default function BrokerManagement() {
             Upload a CSV file with columns: name, display_name, category, website, email, phone, address, country, state, opt_out_url, notes
           </Typography>
           <Box sx={{ mb: 2 }}>
+            <Button size="small" startIcon={<DownloadIcon />} onClick={downloadTemplate} sx={{ mb: 1 }}>
+              Download CSV Template
+            </Button>
             <input
               ref={fileInputRef}
               type="file"

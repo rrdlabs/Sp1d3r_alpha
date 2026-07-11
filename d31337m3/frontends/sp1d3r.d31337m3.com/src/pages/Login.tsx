@@ -24,12 +24,17 @@ export default function Login() {
     e.preventDefault()
     setError("")
     setLoading(true)
-    const ok = await login(username, password)
-    setLoading(false)
-    if (ok) {
-      navigate("/dashboard")
-    } else {
-      setError("Invalid credentials")
+    try {
+      const ok = await login(username, password)
+      if (ok) {
+        navigate("/dashboard")
+      } else {
+        setError("Invalid credentials")
+      }
+    } catch (err) {
+      setError("Connection failed — please try again")
+    } finally {
+      setLoading(false)
     }
   }
 

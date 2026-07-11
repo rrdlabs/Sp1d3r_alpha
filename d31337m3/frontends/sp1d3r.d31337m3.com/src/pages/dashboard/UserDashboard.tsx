@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react"
+import { Link as RouterLink } from "react-router-dom"
 import {
   Box,
   Button,
@@ -23,6 +24,7 @@ import ErrorIcon from "@mui/icons-material/Error"
 import HubIcon from "@mui/icons-material/Hub"
 import AccountTreeIcon from "@mui/icons-material/AccountTree"
 import ComputerIcon from "@mui/icons-material/Computer"
+import DownloadIcon from "@mui/icons-material/Download"
 import { apiRequest } from "../../api/client"
 import { useAuth } from "../../context/AuthContext"
 
@@ -118,6 +120,37 @@ export default function UserDashboard() {
       <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
         Monitor your reputation, run crawls, and view chain status.
       </Typography>
+
+      <Paper
+        variant="outlined"
+        sx={{
+          mb: 3,
+          p: 3,
+          background: "linear-gradient(135deg, rgba(25,118,210,0.08) 0%, rgba(46,125,50,0.08) 100%)",
+          border: 1,
+          borderColor: "primary.main",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          flexWrap: "wrap",
+          gap: 2,
+        }}
+      >
+        <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
+          <DownloadIcon color="primary" sx={{ fontSize: 40 }} />
+          <Box>
+            <Typography variant="h6" sx={{ fontWeight: 700 }}>
+              Run a Node — Get a Free Professional Subscription
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              Deploy a Sp1d3r node in minutes with Docker. Help the network, earn reputation, and unlock free platform access.
+            </Typography>
+          </Box>
+        </Box>
+        <Button variant="contained" component={RouterLink} to="/nodes" startIcon={<DownloadIcon />}>
+          Learn More
+        </Button>
+      </Paper>
 
       <Grid container spacing={3}>
         <Grid size={{ xs: 12, md: 3 }}>

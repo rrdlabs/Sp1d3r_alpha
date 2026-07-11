@@ -37,6 +37,7 @@ import SecurityIcon from "@mui/icons-material/Security"
 import PaymentsIcon from "@mui/icons-material/Payments"
 import CreditCardIcon from "@mui/icons-material/CreditCard"
 import HealingIcon from "@mui/icons-material/Healing"
+import ComputerIcon from "@mui/icons-material/Computer"
 import SubscriptionsIcon from "@mui/icons-material/Subscriptions"
 import DescriptionIcon from "@mui/icons-material/Description"
 import AccountTreeIcon from "@mui/icons-material/AccountTree"
@@ -63,6 +64,7 @@ const navItems: NavItem[] = [
   { label: "Home", path: "/", icon: <HomeIcon /> },
   { label: "Dashboard", path: "/dashboard", icon: <DashboardIcon />, auth: true },
   { label: "Subscribe", path: "/dashboard/subscribe", icon: <SubscriptionsIcon />, auth: true },
+  { label: "Run a Node", path: "/nodes", icon: <ComputerIcon /> },
   {
     label: "Admin",
     path: "/admin",
