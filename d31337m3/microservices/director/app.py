@@ -7,6 +7,19 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
 
+
+class CORSMixin:
+    def end_headers(self):
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization")
+        self.send_header("Access-Control-Max-Age", "86400")
+        super().end_headers()
+
+    def do_OPTIONS(self):
+        self.send_response(200)
+        self.end_headers()
+
 DATA_DIR = Path(os.getenv("DIRECTOR_DATA_DIR", "/tmp/director-data"))
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 DB_PATH = DATA_DIR / "director.json"
@@ -24,7 +37,7 @@ def _save_store(store: dict[str, Any]) -> None:
         json.dump(store, handle, indent=2, sort_keys=True)
 
 
-class DirectorHandler(BaseHTTPRequestHandler):
+class DirectorHandler(CORSMixin, BaseHTTPRequestHandler):
     def do_GET(self) -> None:  # noqa: N802
         path = self._normal_path()
         if path == "/health":

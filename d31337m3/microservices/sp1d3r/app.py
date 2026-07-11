@@ -28,6 +28,19 @@ from d31337m3_chain import (
 from d31337m3_chain.transaction import TRANSACTION_SIZE
 from d31337m3_crawler import CrawlerWorker, FindingStore, WorkerConfig
 
+
+class CORSMixin:
+    def end_headers(self):
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization")
+        self.send_header("Access-Control-Max-Age", "86400")
+        super().end_headers()
+
+    def do_OPTIONS(self):
+        self.send_response(200)
+        self.end_headers()
+
 HOST = os.getenv("SP1D3R_HOST", "0.0.0.0")
 PORT = int(os.getenv("SP1D3R_PORT", "9000"))
 DATA_DIR = Path(os.getenv("SP1D3R_DATA_DIR", "/tmp/sp1d3r-data"))
@@ -122,7 +135,7 @@ def _verify_p2p(method: str, path: str, body: bytes) -> bytes | None:
     return verify_signed_request(pubkey_hex, sig_hex, method, path, body)
 
 
-class Sp1d3rHandler(BaseHTTPRequestHandler):
+class Sp1d3rHandler(CORSMixin, BaseHTTPRequestHandler):
     _p2p_pubkey_hex: str = ""
     _p2p_sig_hex: str = ""
 

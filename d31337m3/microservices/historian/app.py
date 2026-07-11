@@ -7,6 +7,19 @@ from typing import Any
 
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
+
+class CORSMixin:
+    def end_headers(self):
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization")
+        self.send_header("Access-Control-Max-Age", "86400")
+        super().end_headers()
+
+    def do_OPTIONS(self):
+        self.send_response(200)
+        self.end_headers()
+
 DATA_DIR = Path(os.getenv("HISTORIAN_DATA_DIR", "/tmp/historian-data"))
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 DB_PATH = DATA_DIR / "records.json"
@@ -33,7 +46,7 @@ def _decrypt(value: str) -> str:
     return bytes.fromhex(value).decode("utf-8")
 
 
-class HistorianHandler(BaseHTTPRequestHandler):
+class HistorianHandler(CORSMixin, BaseHTTPRequestHandler):
     def do_GET(self) -> None:  # noqa: N802
         if self.path.startswith("/health"):
             self._send(200, {"status": "ok"})

@@ -5,6 +5,19 @@ import os
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
 
+
+class CORSMixin:
+    def end_headers(self):
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization")
+        self.send_header("Access-Control-Max-Age", "86400")
+        super().end_headers()
+
+    def do_OPTIONS(self):
+        self.send_response(200)
+        self.end_headers()
+
 import urllib.request
 
 HISTORIAN_URL = os.getenv("HISTORIAN_URL", "http://127.0.0.1:8100")
@@ -24,7 +37,7 @@ def _fetch_broker(broker_name: str) -> list[dict[str, Any]]:
     return payload.get("rows", [])
 
 
-class LawyerHandler(BaseHTTPRequestHandler):
+class LawyerHandler(CORSMixin, BaseHTTPRequestHandler):
     def do_GET(self) -> None:  # noqa: N802
         if self.path.startswith("/health"):
             self._send(200, {"status": "ok"})

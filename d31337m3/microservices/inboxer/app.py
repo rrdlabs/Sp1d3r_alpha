@@ -10,6 +10,19 @@ from typing import Any
 
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
+
+class CORSMixin:
+    def end_headers(self):
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization")
+        self.send_header("Access-Control-Max-Age", "86400")
+        super().end_headers()
+
+    def do_OPTIONS(self):
+        self.send_response(200)
+        self.end_headers()
+
 DATA_DIR = Path(os.getenv("INBOXER_DATA_DIR", "/tmp/inboxer-data"))
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 DB_PATH = DATA_DIR / "inboxer.sqlite3"
@@ -46,7 +59,7 @@ def _send_smtp_mail(payload: dict[str, Any]) -> str:
         return "queued"
 
 
-class InboxerHandler(BaseHTTPRequestHandler):
+class InboxerHandler(CORSMixin, BaseHTTPRequestHandler):
     def do_GET(self) -> None:  # noqa: N802
         if self.path.startswith("/health"):
             self._send(200, {"status": "ok"})

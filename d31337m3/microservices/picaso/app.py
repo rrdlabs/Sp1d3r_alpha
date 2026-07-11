@@ -9,6 +9,19 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
 
+
+class CORSMixin:
+    def end_headers(self):
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization")
+        self.send_header("Access-Control-Max-Age", "86400")
+        super().end_headers()
+
+    def do_OPTIONS(self):
+        self.send_response(200)
+        self.end_headers()
+
 DATA_DIR = Path(os.getenv("PICASO_DATA_DIR", "/tmp/picaso-data"))
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 FRONTEND_ROOT = DATA_DIR / "frontends"
@@ -16,7 +29,7 @@ FRONTEND_ROOT.mkdir(parents=True, exist_ok=True)
 DIRECTOR_URL = os.getenv("DIRECTOR_URL", "http://127.0.0.1:8400")
 
 
-class PicasoHandler(BaseHTTPRequestHandler):
+class PicasoHandler(CORSMixin, BaseHTTPRequestHandler):
     def __init__(self, *args: Any, **kwargs: Any) -> None:  # noqa: ANN401
         self._state = {"status": "running", "restarts": 0, "failures": 0, "traffic": {}}
         super().__init__(*args, **kwargs)
