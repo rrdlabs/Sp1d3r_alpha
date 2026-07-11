@@ -19,6 +19,7 @@ import BlockchainDetails from "./pages/admin/BlockchainDetails"
 import LogViewer from "./pages/admin/LogViewer"
 import EmailSettings from "./pages/admin/EmailSettings"
 import NodeManagement from "./pages/admin/NodeManagement"
+import BrokerManagement from "./pages/admin/BrokerManagement"
 import Documents from "./pages/admin/Documents"
 import PricingTiers from "./pages/admin/PricingTiers"
 import PaymentProcessing from "./pages/admin/PaymentProcessing"
@@ -60,6 +61,7 @@ export default function App() {
               <Route path="/admin/logs" element={<AuthGuard><LogViewer /></AuthGuard>} />
               <Route path="/admin/email" element={<AuthGuard><EmailSettings /></AuthGuard>} />
               <Route path="/admin/network" element={<AuthGuard><NodeManagement /></AuthGuard>} />
+              <Route path="/admin/brokers" element={<AuthGuard><BrokerManagement /></AuthGuard>} />
               <Route path="/admin/documents" element={<AuthGuard><Documents /></AuthGuard>} />
               <Route path="/admin/pricing" element={<AuthGuard><PricingTiers /></AuthGuard>} />
               <Route path="/admin/payments" element={<AuthGuard><PaymentProcessing /></AuthGuard>} />

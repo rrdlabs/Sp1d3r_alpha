@@ -109,6 +109,7 @@ async def register(
         access_token=token,
         user_id=str(user.id),
         username=user.username,
+        is_admin=user.is_admin,
     )
 
 
@@ -148,6 +149,7 @@ async def login(
         access_token=token,
         user_id=str(user.id),
         username=user.username,
+        is_admin=user.is_admin,
     )
 
 
@@ -258,4 +260,5 @@ async def authenticate_with_key(
         access_token=token,
         user_id=str(user.id),
         username=user.username,
+        is_admin=user.is_admin,
     )

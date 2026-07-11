@@ -56,22 +56,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [state.token, fetchProfile])
 
   const login = useCallback(async (username: string, password: string) => {
-    const res = await apiRequest<{ access_token: string; user_id: string; username: string }>(
+    const res = await apiRequest<{ access_token: string; user_id: string; username: string; is_admin: boolean }>(
       "cityhall",
       "POST",
       "/auth/login",
       { username, password },
     )
     if (res.ok) {
-      const { access_token, user_id, username: uname } = res.data
+      const { access_token, user_id, username: uname, is_admin } = res.data
       localStorage.setItem("sp1d3r_token", access_token)
       localStorage.setItem("sp1d3r_user_id", user_id)
       localStorage.setItem("sp1d3r_username", uname)
+      localStorage.setItem("sp1d3r_is_admin", String(is_admin))
       setState((prev) => ({
         ...prev,
         token: access_token,
         userId: user_id,
         username: uname,
+        isAdmin: is_admin,
       }))
       return true
     }
@@ -79,22 +81,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const register = useCallback(async (data: Record<string, unknown>) => {
-    const res = await apiRequest<{ access_token: string; user_id: string; username: string }>(
+    const res = await apiRequest<{ access_token: string; user_id: string; username: string; is_admin: boolean }>(
       "cityhall",
       "POST",
       "/auth/register",
       data,
     )
     if (res.ok) {
-      const { access_token, user_id, username: uname } = res.data
+      const { access_token, user_id, username: uname, is_admin } = res.data
       localStorage.setItem("sp1d3r_token", access_token)
       localStorage.setItem("sp1d3r_user_id", user_id)
       localStorage.setItem("sp1d3r_username", uname)
+      localStorage.setItem("sp1d3r_is_admin", String(is_admin))
       setState((prev) => ({
         ...prev,
         token: access_token,
         userId: user_id,
         username: uname,
+        isAdmin: is_admin,
       }))
       return true
     }

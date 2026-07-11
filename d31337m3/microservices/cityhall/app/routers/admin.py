@@ -3,15 +3,20 @@ import uuid as _uuid
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import select, func, or_
+from sqlalchemy import select, func, or_, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth import get_current_user, hash_password, require_admin
 from app.database import get_session
-from app.models import NodeEnrollToken, User
+from app.models import Broker, NodeEnrollToken, User
 from app.schemas import (
     AdminCreateUserRequest,
     AdminUserUpdate,
+    BrokerAdmin,
+    BrokerCreate,
+    BrokerCsvRow,
+    BrokerCsvUpload,
+    BrokerUpdate,
     NodeTokenCreateRequest,
     NodeTokenUseRequest,
     PaginatedUsers,
@@ -441,3 +446,168 @@ def _user_to_admin(u: User) -> UserAdmin:
         created_at=u.created_at,
         updated_at=u.updated_at,
     )
+
+
+# ---------------------------------------------------------------------------
+# Broker management
+# ---------------------------------------------------------------------------
+
+@router.get("/brokers")
+async def list_brokers(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(50, ge=1, le=200),
+    q: str | None = Query(None),
+    category: str | None = Query(None),
+    is_active: bool | None = Query(None),
+    _: User = Depends(require_admin),
+    session: AsyncSession = Depends(get_session),
+):
+    conditions = []
+    if q:
+        pattern = f"%{q}%"
+        conditions.append(
+            or_(
+                Broker.name.ilike(pattern),
+                Broker.display_name.ilike(pattern),
+                Broker.email.ilike(pattern),
+            )
+        )
+    if category:
+        conditions.append(Broker.category == category)
+    if is_active is not None:
+        conditions.append(Broker.is_active == is_active)
+
+    where_clause = conditions[0] if len(conditions) == 1 else and_(*conditions) if conditions else None
+
+    count_q = select(func.count(Broker.id))
+    if where_clause is not None:
+        count_q = count_q.where(where_clause)
+    total = (await session.execute(count_q)).scalar_one()
+
+    q_stmt = select(Broker).order_by(Broker.id)
+    if where_clause is not None:
+        q_stmt = q_stmt.where(where_clause)
+    q_stmt = q_stmt.offset((page - 1) * page_size).limit(page_size)
+    rows = (await session.execute(q_stmt)).scalars().all()
+
+    items = [BrokerAdmin.model_validate(b) for b in rows]
+    return {"items": items, "total": total, "page": page, "page_size": page_size}
+
+
+@router.get("/brokers/count")
+async def broker_count(
+    _: User = Depends(require_admin),
+    session: AsyncSession = Depends(get_session),
+):
+    total = (await session.execute(select(func.count(Broker.id)))).scalar_one()
+    return {"count": total}
+
+
+@router.get("/brokers/{broker_id}")
+async def get_broker(
+    broker_id: int,
+    _: User = Depends(require_admin),
+    session: AsyncSession = Depends(get_session),
+):
+    result = await session.execute(select(Broker).where(Broker.id == broker_id))
+    broker = result.scalar_one_or_none()
+    if not broker:
+        raise HTTPException(status_code=404, detail="Broker not found")
+    return BrokerAdmin.model_validate(broker)
+
+
+@router.post("/brokers", status_code=201)
+async def create_broker(
+    body: BrokerCreate,
+    _: User = Depends(require_admin),
+    session: AsyncSession = Depends(get_session),
+):
+    existing = await session.execute(select(Broker).where(Broker.name == body.name))
+    if existing.scalar_one_or_none():
+        raise HTTPException(status_code=409, detail="Broker with this name already exists")
+
+    broker = Broker(**body.model_dump())
+    session.add(broker)
+    await session.flush()
+    return BrokerAdmin.model_validate(broker)
+
+
+@router.put("/brokers/{broker_id}")
+async def update_broker(
+    broker_id: int,
+    updates: BrokerUpdate,
+    _: User = Depends(require_admin),
+    session: AsyncSession = Depends(get_session),
+):
+    result = await session.execute(select(Broker).where(Broker.id == broker_id))
+    broker = result.scalar_one_or_none()
+    if not broker:
+        raise HTTPException(status_code=404, detail="Broker not found")
+
+    for field, value in updates.model_dump(exclude_unset=True).items():
+        setattr(broker, field, value)
+    await session.flush()
+    return BrokerAdmin.model_validate(broker)
+
+
+@router.delete("/brokers/{broker_id}", status_code=204)
+async def delete_broker(
+    broker_id: int,
+    _: User = Depends(require_admin),
+    session: AsyncSession = Depends(get_session),
+):
+    result = await session.execute(select(Broker).where(Broker.id == broker_id))
+    broker = result.scalar_one_or_none()
+    if not broker:
+        raise HTTPException(status_code=404, detail="Broker not found")
+
+    await session.delete(broker)
+
+
+@router.post("/brokers/csv")
+async def import_brokers_csv(
+    body: BrokerCsvUpload,
+    _: User = Depends(require_admin),
+    session: AsyncSession = Depends(get_session),
+):
+    imported = 0
+    skipped = 0
+    errors = []
+
+    for idx, row in enumerate(body.brokers):
+        existing = await session.execute(select(Broker).where(Broker.name == row.name))
+        if existing.scalar_one_or_none():
+            skipped += 1
+            continue
+        try:
+            broker = Broker(
+                name=row.name,
+                display_name=row.display_name or row.name,
+                category=row.category,
+                website=row.website,
+                email=row.email,
+                phone=row.phone,
+                address=row.address,
+                country=row.country,
+                state=row.state,
+                opt_out_url=row.opt_out_url,
+                notes=row.notes,
+            )
+            session.add(broker)
+            await session.flush()
+            imported += 1
+        except Exception as exc:
+            errors.append({"row": idx, "error": str(exc)})
+
+    return {"imported": imported, "skipped": skipped, "errors": errors}
+
+
+@router.delete("/brokers")
+async def delete_all_brokers(
+    _: User = Depends(require_admin),
+    session: AsyncSession = Depends(get_session),
+):
+    result = await session.execute(select(func.count(Broker.id)))
+    count = result.scalar_one()
+    await session.execute(Broker.__table__.delete())
+    return {"deleted": count}

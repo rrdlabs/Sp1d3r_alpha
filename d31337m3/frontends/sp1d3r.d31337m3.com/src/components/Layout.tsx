@@ -39,6 +39,7 @@ import CreditCardIcon from "@mui/icons-material/CreditCard"
 import HealingIcon from "@mui/icons-material/Healing"
 import SubscriptionsIcon from "@mui/icons-material/Subscriptions"
 import DescriptionIcon from "@mui/icons-material/Description"
+import AccountTreeIcon from "@mui/icons-material/AccountTree"
 import { useAuth } from "../context/AuthContext"
 import ThemeToggle from "./ThemeToggle"
 
@@ -49,7 +50,16 @@ interface Props {
   onThemeToggle: () => void
 }
 
-const navItems = [
+interface NavItem {
+  label: string
+  path: string
+  icon: React.ReactNode
+  auth?: boolean
+  adminOnly?: boolean
+  children?: NavItem[]
+}
+
+const navItems: NavItem[] = [
   { label: "Home", path: "/", icon: <HomeIcon /> },
   { label: "Dashboard", path: "/dashboard", icon: <DashboardIcon />, auth: true },
   { label: "Subscribe", path: "/dashboard/subscribe", icon: <SubscriptionsIcon />, auth: true },
@@ -58,9 +68,11 @@ const navItems = [
     path: "/admin",
     icon: <AdminPanelSettingsIcon />,
     auth: true,
+    adminOnly: true,
     children: [
       { label: "Overview", path: "/admin", icon: <DashboardIcon /> },
       { label: "Users", path: "/admin/users", icon: <PeopleIcon /> },
+      { label: "Brokers", path: "/admin/brokers", icon: <AccountTreeIcon /> },
       { label: "Services", path: "/admin/services", icon: <MonitorHeartIcon /> },
       { label: "Platform Health", path: "/admin/health", icon: <HealingIcon /> },
       { label: "Blockchain", path: "/admin/blockchain", icon: <CurrencyBitcoinIcon /> },
@@ -76,7 +88,7 @@ const navItems = [
 ]
 
 export default function Layout({ isDark, onThemeToggle }: Props) {
-  const { username, logout } = useAuth()
+  const { username, isAdmin, logout } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
   const theme = useTheme()
@@ -99,7 +111,7 @@ export default function Layout({ isDark, onThemeToggle }: Props) {
       </Toolbar>
       <Divider />
       <List>
-        {navItems.map((item) => {
+        {navItems.filter((item) => !item.adminOnly || isAdmin).map((item) => {
           if (item.children) {
             const isActive = location.pathname.startsWith("/admin")
             return (

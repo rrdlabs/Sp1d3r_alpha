@@ -45,6 +45,7 @@ class TokenResponse(BaseModel):
     token_type: str = "bearer"
     user_id: str
     username: str
+    is_admin: bool = False
 
 
 class ChallengeResponse(BaseModel):
@@ -196,3 +197,77 @@ class PaginatedUsers(BaseModel):
     total: int
     page: int
     page_size: int
+
+
+# ---------------------------------------------------------------------------
+# Broker schemas
+# ---------------------------------------------------------------------------
+
+class BrokerCreate(BaseModel):
+    name: str = Field(..., min_length=1, max_length=255)
+    display_name: str = Field(..., min_length=1, max_length=255)
+    category: str = "data_broker"
+    website: str | None = None
+    email: str | None = None
+    phone: str | None = None
+    address: str | None = None
+    country: str | None = None
+    state: str | None = None
+    opt_out_url: str | None = None
+    notes: str | None = None
+    is_active: bool = True
+    extra_data: dict = {}
+
+
+class BrokerUpdate(BaseModel):
+    name: str | None = Field(None, min_length=1, max_length=255)
+    display_name: str | None = Field(None, min_length=1, max_length=255)
+    category: str | None = None
+    website: str | None = None
+    email: str | None = None
+    phone: str | None = None
+    address: str | None = None
+    country: str | None = None
+    state: str | None = None
+    opt_out_url: str | None = None
+    notes: str | None = None
+    is_active: bool | None = None
+    extra_data: dict | None = None
+
+
+class BrokerAdmin(BaseModel):
+    id: int
+    name: str
+    display_name: str
+    category: str
+    website: str | None = None
+    email: str | None = None
+    phone: str | None = None
+    address: str | None = None
+    country: str | None = None
+    state: str | None = None
+    opt_out_url: str | None = None
+    notes: str | None = None
+    is_active: bool = True
+    extra_data: dict = {}
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
+    model_config = {"from_attributes": True}
+
+
+class BrokerCsvRow(BaseModel):
+    name: str
+    display_name: str | None = None
+    category: str = "data_broker"
+    website: str | None = None
+    email: str | None = None
+    phone: str | None = None
+    address: str | None = None
+    country: str | None = None
+    state: str | None = None
+    opt_out_url: str | None = None
+    notes: str | None = None
+
+
+class BrokerCsvUpload(BaseModel):
+    brokers: list[BrokerCsvRow]
