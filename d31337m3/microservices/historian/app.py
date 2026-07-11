@@ -60,6 +60,11 @@ class HistorianHandler(CORSMixin, BaseHTTPRequestHandler):
                 return
             self._send(200, {"key": key, "value": _decrypt(record["value"])})
             return
+        if self.path == "/templates":
+            store = _load_store()
+            names = list(store["templates"].keys())
+            self._send(200, {"templates": names, "count": len(names)})
+            return
         if self.path.startswith("/templates/"):
             name = self.path.split("/", 2)[2]
             store = _load_store()
@@ -77,6 +82,19 @@ class HistorianHandler(CORSMixin, BaseHTTPRequestHandler):
                 self._send(404, {"error": "broker_not_found"})
                 return
             self._send(200, {"broker": broker_name, "rows": broker})
+            return
+        self._send(404, {"error": "not_found"})
+
+    def do_DELETE(self) -> None:  # noqa: N802
+        if self.path.startswith("/templates/"):
+            name = self.path.split("/", 2)[2]
+            store = _load_store()
+            if name not in store["templates"]:
+                self._send(404, {"error": "template_not_found"})
+                return
+            del store["templates"][name]
+            _save_store(store)
+            self._send(200, {"status": "deleted", "name": name})
             return
         self._send(404, {"error": "not_found"})
 

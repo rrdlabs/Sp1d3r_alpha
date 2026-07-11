@@ -14,9 +14,13 @@ import {
   TableHead,
   TableRow,
   Alert,
+  IconButton,
+  Tooltip,
 } from "@mui/material"
 import RefreshIcon from "@mui/icons-material/Refresh"
 import SpeedIcon from "@mui/icons-material/Speed"
+import RestartAltIcon from "@mui/icons-material/RestartAlt"
+import StopIcon from "@mui/icons-material/Stop"
 import { apiRequest } from "../../api/client"
 
 interface Service {
@@ -40,6 +44,8 @@ export default function ServiceMonitor() {
   const [services, setServices] = useState<Service[]>([])
   const [traffic, setTraffic] = useState<Record<string, TrafficEntry>>({})
   const [reconciled, setReconciled] = useState(false)
+  const [actionMsg, setActionMsg] = useState("")
+  const [actionError, setActionError] = useState("")
 
   const load = async () => {
     const [svcRes, trfRes] = await Promise.all([
@@ -57,6 +63,30 @@ export default function ServiceMonitor() {
     if (res.ok) {
       setReconciled(true)
       load()
+    }
+  }
+
+  const handleRestart = async (name: string) => {
+    setActionMsg("")
+    setActionError("")
+    const res = await apiRequest("director", "POST", `/services/${name}/restart`)
+    if (res.ok) {
+      setActionMsg(`${name} is restarting`)
+      load()
+    } else {
+      setActionError(`Failed to restart ${name}`)
+    }
+  }
+
+  const handleStop = async (name: string) => {
+    setActionMsg("")
+    setActionError("")
+    const res = await apiRequest("director", "POST", `/services/${name}/stop`)
+    if (res.ok) {
+      setActionMsg(`${name} stopped`)
+      load()
+    } else {
+      setActionError(`Failed to stop ${name}`)
     }
   }
 
@@ -79,6 +109,12 @@ export default function ServiceMonitor() {
           Reconciliation complete. Services with failures above threshold have been restarted.
         </Alert>
       )}
+      {actionMsg && (
+        <Alert severity="success" sx={{ mb: 2 }} onClose={() => setActionMsg("")}>{actionMsg}</Alert>
+      )}
+      {actionError && (
+        <Alert severity="error" sx={{ mb: 2 }} onClose={() => setActionError("")}>{actionError}</Alert>
+      )}
 
       <Grid container spacing={3} sx={{ mb: 3 }}>
         {services.map((s) => (
@@ -91,7 +127,21 @@ export default function ServiceMonitor() {
               }}
               variant="outlined"
             >
-              <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>{s.name}</Typography>
+              <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>{s.name}</Typography>
+                <Box>
+                  <Tooltip title="Restart">
+                    <IconButton size="small" color="warning" onClick={() => handleRestart(s.name)}>
+                      <RestartAltIcon fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
+                  <Tooltip title="Stop">
+                    <IconButton size="small" color="error" onClick={() => handleStop(s.name)}>
+                      <StopIcon fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
+                </Box>
+              </Box>
               <Typography variant="body2" color="text.secondary">{s.url}</Typography>
               <Chip
                 label={s.status}

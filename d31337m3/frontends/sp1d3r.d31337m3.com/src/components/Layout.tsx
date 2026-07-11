@@ -38,6 +38,7 @@ import PaymentsIcon from "@mui/icons-material/Payments"
 import CreditCardIcon from "@mui/icons-material/CreditCard"
 import HealingIcon from "@mui/icons-material/Healing"
 import SubscriptionsIcon from "@mui/icons-material/Subscriptions"
+import DescriptionIcon from "@mui/icons-material/Description"
 import { useAuth } from "../context/AuthContext"
 import ThemeToggle from "./ThemeToggle"
 
@@ -65,7 +66,8 @@ const navItems = [
       { label: "Blockchain", path: "/admin/blockchain", icon: <CurrencyBitcoinIcon /> },
       { label: "Logs", path: "/admin/logs", icon: <TerminalIcon /> },
       { label: "Email", path: "/admin/email", icon: <EmailIcon /> },
-      { label: "Network", path: "/admin/network", icon: <SecurityIcon /> },
+      { label: "Node Management", path: "/admin/network", icon: <SecurityIcon /> },
+      { label: "Documents", path: "/admin/documents", icon: <DescriptionIcon /> },
       { label: "Pricing Tiers", path: "/admin/pricing", icon: <PaymentsIcon /> },
       { label: "Payments", path: "/admin/payments", icon: <CreditCardIcon /> },
     ],

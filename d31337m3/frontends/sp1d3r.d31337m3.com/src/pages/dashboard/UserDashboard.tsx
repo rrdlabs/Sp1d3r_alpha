@@ -20,6 +20,8 @@ import {
 import BugReportIcon from "@mui/icons-material/BugReport"
 import CheckCircleIcon from "@mui/icons-material/CheckCircle"
 import ErrorIcon from "@mui/icons-material/Error"
+import HubIcon from "@mui/icons-material/Hub"
+import AccountTreeIcon from "@mui/icons-material/AccountTree"
 import { apiRequest } from "../../api/client"
 import { useAuth } from "../../context/AuthContext"
 
@@ -37,6 +39,13 @@ interface ChainState {
   height: number
 }
 
+interface Peer {
+  url: string
+  pubkey: string
+  height: number
+  last_seen: number
+}
+
 export default function UserDashboard() {
   const { username } = useAuth()
   const [urls, setUrls] = useState("")
@@ -45,23 +54,21 @@ export default function UserDashboard() {
   const [crawlResults, setCrawlResults] = useState<CrawlResult[] | null>(null)
   const [crawlError, setCrawlError] = useState("")
   const [chainState, setChainState] = useState<ChainState | null>(null)
+  const [peers, setPeers] = useState<Peer[]>([])
   const [healthOk, setHealthOk] = useState<boolean | null>(null)
 
   useEffect(() => {
-    apiRequest("sp1d3r", "GET", "/health").then((res) => {
-      if (res.ok) {
-        setHealthOk(true)
-        setChainState({
-          blocks: (res.data as Record<string, unknown>).chain_blocks as number || 0,
-          authenticated_nodes: (res.data as Record<string, unknown>).authenticated_nodes as number || 0,
-          payload_roots: (res.data as Record<string, unknown>).payload_roots as number || 0,
-          events: 0,
-          height: (res.data as Record<string, unknown>).height as number || 0,
-        })
-      } else {
-        setHealthOk(false)
-      }
-    }).catch(() => setHealthOk(false))
+    const loadChain = async () => {
+      const [healthRes, stateRes, peersRes] = await Promise.all([
+        apiRequest("sp1d3r", "GET", "/health"),
+        apiRequest<ChainState>("sp1d3r", "GET", "/v1/chain/state"),
+        apiRequest<{ peers: Peer[] }>("sp1d3r", "GET", "/v1/chain/peers"),
+      ])
+      setHealthOk(healthRes.ok)
+      if (stateRes.ok) setChainState(stateRes.data)
+      if (peersRes.ok) setPeers(peersRes.data.peers || [])
+    }
+    loadChain()
   }, [])
 
   const handleCrawl = async () => {
@@ -87,6 +94,8 @@ export default function UserDashboard() {
     }
   }
 
+  const onlinePeers = peers.filter((p) => Date.now() / 1000 - p.last_seen < 300).length
+
   return (
     <Container maxWidth="lg">
       <Typography variant="h4" gutterBottom sx={{ fontFamily: "monospace" }}>
@@ -97,11 +106,11 @@ export default function UserDashboard() {
       </Typography>
 
       <Grid container spacing={3}>
-        <Grid size={{ xs: 12, md: 4 }}>
+        <Grid size={{ xs: 12, md: 3 }}>
           <Paper sx={{ p: 3 }} variant="outlined">
             <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1 }}>
               <BugReportIcon color="primary" />
-              <Typography variant="h6">Sp1d3r Node</Typography>
+              <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>Sp1d3r Node</Typography>
             </Box>
             <Chip
               icon={healthOk ? <CheckCircleIcon /> : <ErrorIcon />}
@@ -111,21 +120,80 @@ export default function UserDashboard() {
             />
           </Paper>
         </Grid>
-        <Grid size={{ xs: 12, md: 4 }}>
+        <Grid size={{ xs: 12, md: 3 }}>
           <Paper sx={{ p: 3 }} variant="outlined">
-            <Typography variant="h6" gutterBottom>Chain Height</Typography>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1 }}>
+              <AccountTreeIcon color="primary" />
+              <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>Chain Height</Typography>
+            </Box>
             <Typography variant="h3" color="primary">{chainState?.height ?? "—"}</Typography>
             <Typography variant="body2" color="text.secondary">{chainState?.blocks ?? 0} blocks</Typography>
           </Paper>
         </Grid>
-        <Grid size={{ xs: 12, md: 4 }}>
+        <Grid size={{ xs: 12, md: 3 }}>
           <Paper sx={{ p: 3 }} variant="outlined">
-            <Typography variant="h6" gutterBottom>Network</Typography>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1 }}>
+              <HubIcon color="secondary" />
+              <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>Network</Typography>
+            </Box>
             <Typography variant="h3" color="secondary">{chainState?.authenticated_nodes ?? "—"}</Typography>
             <Typography variant="body2" color="text.secondary">authenticated nodes</Typography>
           </Paper>
         </Grid>
+        <Grid size={{ xs: 12, md: 3 }}>
+          <Paper sx={{ p: 3 }} variant="outlined">
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1 }}>
+              <CheckCircleIcon color={onlinePeers > 0 ? "success" : "warning"} />
+              <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>Peers Online</Typography>
+            </Box>
+            <Typography variant="h3" color={onlinePeers > 0 ? "success.main" : "warning.main"}>
+              {onlinePeers}/{peers.length}
+            </Typography>
+            <Typography variant="body2" color="text.secondary">connected peers</Typography>
+          </Paper>
+        </Grid>
       </Grid>
+
+      {peers.length > 0 && (
+        <Paper sx={{ p: 3, mt: 3 }} variant="outlined">
+          <Typography variant="h6" gutterBottom sx={{ fontFamily: "monospace" }}>
+            Connected Nodes
+          </Typography>
+          <TableContainer>
+            <Table size="small">
+              <TableHead>
+                <TableRow>
+                  <TableCell>URL</TableCell>
+                  <TableCell>Public Key</TableCell>
+                  <TableCell>Height</TableCell>
+                  <TableCell>Status</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {peers.map((p) => {
+                  const online = Date.now() / 1000 - p.last_seen < 300
+                  return (
+                    <TableRow key={p.url}>
+                      <TableCell sx={{ fontFamily: "monospace" }}>{p.url}</TableCell>
+                      <TableCell sx={{ fontFamily: "monospace", fontSize: "0.75rem" }}>
+                        {p.pubkey.slice(0, 16)}...
+                      </TableCell>
+                      <TableCell>{p.height}</TableCell>
+                      <TableCell>
+                        <Chip
+                          size="small"
+                          label={online ? "online" : "stale"}
+                          color={online ? "success" : "warning"}
+                        />
+                      </TableCell>
+                    </TableRow>
+                  )
+                })}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        </Paper>
+      )}
 
       <Paper sx={{ p: 3, mt: 3 }} variant="outlined">
         <Typography variant="h5" gutterBottom sx={{ fontFamily: "monospace" }}>

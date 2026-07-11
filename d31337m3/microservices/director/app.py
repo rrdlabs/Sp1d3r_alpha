@@ -172,6 +172,64 @@ class DirectorHandler(CORSMixin, BaseHTTPRequestHandler):
             blacklist = store.get("blacklist", [])
             self._send(200, {"blacklist": blacklist})
             return
+        if path.startswith("/services/") and path.endswith("/restart"):
+            name = path.split("/", 2)[2].split("/", 1)[0]
+            container = SERVICE_CONTAINER_MAP.get(name)
+            if not container:
+                self._send(404, {"error": "service_not_found"})
+                return
+            try:
+                import socket
+                sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+                sock.connect("/var/run/docker.sock")
+                req = f"POST /containers/{container}/restart HTTP/1.0\r\nHost: localhost\r\nContent-Length: 0\r\n\r\n"
+                sock.sendall(req.encode())
+                data = b""
+                while True:
+                    chunk = sock.recv(4096)
+                    if not chunk:
+                        break
+                    data += chunk
+                sock.close()
+                status_line = data.split(b"\r\n")[0].decode()
+                store = _load_store()
+                svc = store["services"].get(name, {})
+                svc["restart_count"] = int(svc.get("restart_count", 0)) + 1
+                svc["status"] = "restarting"
+                _save_store(store)
+                self._send(200, {"status": "restarting", "container": container, "http_status": status_line})
+            except Exception as e:
+                self._send(500, {"error": "restart_failed", "detail": str(e)})
+            return
+        if path.startswith("/services/") and path.endswith("/stop"):
+            name = path.split("/", 2)[2].split("/", 1)[0]
+            container = SERVICE_CONTAINER_MAP.get(name)
+            if not container:
+                self._send(404, {"error": "service_not_found"})
+                return
+            try:
+                import socket
+                sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+                sock.connect("/var/run/docker.sock")
+                req = f"POST /containers/{container}/stop HTTP/1.0\r\nHost: localhost\r\nContent-Length: 0\r\n\r\n"
+                sock.sendall(req.encode())
+                data = b""
+                while True:
+                    chunk = sock.recv(4096)
+                    if not chunk:
+                        break
+                    data += chunk
+                sock.close()
+                status_line = data.split(b"\r\n")[0].decode()
+                store = _load_store()
+                svc = store["services"].get(name, {})
+                svc["status"] = "stopped"
+                svc["healthy"] = False
+                _save_store(store)
+                self._send(200, {"status": "stopped", "container": container, "http_status": status_line})
+            except Exception as e:
+                self._send(500, {"error": "stop_failed", "detail": str(e)})
+            return
         self._send(404, {"error": "not_found"})
 
     def do_POST(self) -> None:  # noqa: N802
