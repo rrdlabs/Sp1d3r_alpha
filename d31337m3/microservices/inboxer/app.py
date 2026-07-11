@@ -36,12 +36,33 @@ def _connect() -> sqlite3.Connection:
     return conn
 
 
+SETTINGS_PATH = DATA_DIR / "settings.json"
+
+def _load_settings() -> dict[str, Any]:
+    if SETTINGS_PATH.exists():
+        with SETTINGS_PATH.open("r", encoding="utf-8") as handle:
+            return json.load(handle)
+    return {
+        "host": os.getenv("INBOXER_SMTP_HOST", "localhost"),
+        "port": os.getenv("INBOXER_SMTP_PORT", "25"),
+        "username": os.getenv("INBOXER_SMTP_USERNAME", ""),
+        "password": os.getenv("INBOXER_SMTP_PASSWORD", ""),
+        "from_address": os.getenv("INBOXER_SMTP_FROM", "no-reply@example.com"),
+        "use_tls": True,
+    }
+
+def _save_settings(settings: dict[str, Any]) -> None:
+    with SETTINGS_PATH.open("w", encoding="utf-8") as handle:
+        json.dump(settings, handle, indent=2)
+
+
 def _send_smtp_mail(payload: dict[str, Any]) -> str:
-    host = os.getenv("INBOXER_SMTP_HOST", "localhost")
-    port = int(os.getenv("INBOXER_SMTP_PORT", "25"))
-    username = os.getenv("INBOXER_SMTP_USERNAME")
-    password = os.getenv("INBOXER_SMTP_PASSWORD")
-    sender = os.getenv("INBOXER_SMTP_FROM", "no-reply@example.com")
+    settings = _load_settings()
+    host = settings.get("host", "localhost")
+    port = int(settings.get("port", "25"))
+    username = settings.get("username") or None
+    password = settings.get("password") or None
+    sender = settings.get("from_address", "no-reply@example.com")
 
     message = EmailMessage()
     message["Subject"] = payload.get("subject", "Inboxer message")
@@ -74,6 +95,14 @@ class InboxerHandler(CORSMixin, BaseHTTPRequestHandler):
             payload = [{"id": row["id"], "channel": row["channel"], "sender": row["sender"], "recipient": row["recipient"], "body": row["body"], "metadata": json.loads(row["metadata"])} for row in rows]
             self._send(200, {"messages": payload})
             return
+        if self.path.startswith("/settings"):
+            self._send(200, {"settings": _load_settings()})
+            return
+        if self.path.startswith("/mail/history"):
+            with _connect() as conn:
+                rows = conn.execute("SELECT id, to_address, subject, status FROM mailouts ORDER BY id DESC LIMIT 50").fetchall()
+            self._send(200, {"mailouts": [dict(row) for row in rows]})
+            return
         self._send(404, {"error": "not_found"})
 
     def do_POST(self) -> None:  # noqa: N802
@@ -101,6 +130,13 @@ class InboxerHandler(CORSMixin, BaseHTTPRequestHandler):
                     (body["to_address"], body.get("subject", "Inboxer mail"), body.get("body", ""), status, "smtp"),
                 )
             self._send(201, {"status": status})
+            return
+        if self.path == "/settings":
+            body = self._read_json()
+            current = _load_settings()
+            current.update(body)
+            _save_settings(current)
+            self._send(200, {"status": "saved", "settings": current})
             return
         self._send(404, {"error": "not_found"})
 

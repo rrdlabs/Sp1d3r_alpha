@@ -13,6 +13,9 @@ import UserSettings from "./pages/dashboard/UserSettings"
 import AdminDashboard from "./pages/admin/AdminDashboard"
 import UserManagement from "./pages/admin/UserManagement"
 import ServiceMonitor from "./pages/admin/ServiceMonitor"
+import BlockchainDetails from "./pages/admin/BlockchainDetails"
+import LogViewer from "./pages/admin/LogViewer"
+import EmailSettings from "./pages/admin/EmailSettings"
 import SupportChat from "./pages/support/SupportChat"
 
 export default function App() {
@@ -45,6 +48,9 @@ export default function App() {
               <Route path="/admin" element={<AuthGuard><AdminDashboard /></AuthGuard>} />
               <Route path="/admin/users" element={<AuthGuard><UserManagement /></AuthGuard>} />
               <Route path="/admin/services" element={<AuthGuard><ServiceMonitor /></AuthGuard>} />
+              <Route path="/admin/blockchain" element={<AuthGuard><BlockchainDetails /></AuthGuard>} />
+              <Route path="/admin/logs" element={<AuthGuard><LogViewer /></AuthGuard>} />
+              <Route path="/admin/email" element={<AuthGuard><EmailSettings /></AuthGuard>} />
               <Route path="/support" element={<AuthGuard><SupportChat /></AuthGuard>} />
             </Route>
           </Routes>

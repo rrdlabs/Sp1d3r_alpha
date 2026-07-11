@@ -3,6 +3,7 @@ import { Outlet, useNavigate, useLocation } from "react-router-dom"
 import {
   AppBar,
   Box,
+  Collapse,
   Drawer,
   IconButton,
   List,
@@ -25,6 +26,13 @@ import AdminPanelSettingsIcon from "@mui/icons-material/AdminPanelSettings"
 import SupportAgentIcon from "@mui/icons-material/SupportAgent"
 import SettingsIcon from "@mui/icons-material/Settings"
 import LogoutIcon from "@mui/icons-material/Logout"
+import ExpandLess from "@mui/icons-material/ExpandLess"
+import ExpandMore from "@mui/icons-material/ExpandMore"
+import PeopleIcon from "@mui/icons-material/People"
+import MonitorHeartIcon from "@mui/icons-material/MonitorHeart"
+import CurrencyBitcoinIcon from "@mui/icons-material/CurrencyBitcoin"
+import TerminalIcon from "@mui/icons-material/Terminal"
+import EmailIcon from "@mui/icons-material/Email"
 import { useAuth } from "../context/AuthContext"
 import ThemeToggle from "./ThemeToggle"
 
@@ -38,7 +46,20 @@ interface Props {
 const navItems = [
   { label: "Home", path: "/", icon: <HomeIcon /> },
   { label: "Dashboard", path: "/dashboard", icon: <DashboardIcon />, auth: true },
-  { label: "Admin", path: "/admin", icon: <AdminPanelSettingsIcon />, auth: true },
+  {
+    label: "Admin",
+    path: "/admin",
+    icon: <AdminPanelSettingsIcon />,
+    auth: true,
+    children: [
+      { label: "Overview", path: "/admin", icon: <DashboardIcon /> },
+      { label: "Users", path: "/admin/users", icon: <PeopleIcon /> },
+      { label: "Services", path: "/admin/services", icon: <MonitorHeartIcon /> },
+      { label: "Blockchain", path: "/admin/blockchain", icon: <CurrencyBitcoinIcon /> },
+      { label: "Logs", path: "/admin/logs", icon: <TerminalIcon /> },
+      { label: "Email", path: "/admin/email", icon: <EmailIcon /> },
+    ],
+  },
   { label: "Support", path: "/support", icon: <SupportAgentIcon />, auth: true },
 ]
 
@@ -50,6 +71,7 @@ export default function Layout({ isDark, onThemeToggle }: Props) {
   const isMobile = useMediaQuery(theme.breakpoints.down("md"))
   const [mobileOpen, setMobileOpen] = useState(false)
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null)
+  const [adminOpen, setAdminOpen] = useState(location.pathname.startsWith("/admin"))
 
   const handleNav = (path: string) => {
     navigate(path)
@@ -65,22 +87,62 @@ export default function Layout({ isDark, onThemeToggle }: Props) {
       </Toolbar>
       <Divider />
       <List>
-        {navItems.map((item) => (
-          <ListItemButton
-            key={item.path}
-            selected={location.pathname === item.path || (item.path !== "/" && location.pathname.startsWith(item.path))}
-            onClick={() => handleNav(item.path)}
-            sx={{
-              "&.Mui-selected": { bgcolor: "rgba(0, 230, 118, 0.1)" },
-              "&:hover": { bgcolor: "rgba(0, 230, 118, 0.05)" },
-            }}
-          >
-            <ListItemIcon sx={{ color: location.pathname.startsWith(item.path) ? "primary.main" : "text.secondary" }}>
-              {item.icon}
-            </ListItemIcon>
-            <ListItemText primary={item.label} />
-          </ListItemButton>
-        ))}
+        {navItems.map((item) => {
+          if (item.children) {
+            const isActive = location.pathname.startsWith("/admin")
+            return (
+              <Box key={item.path}>
+                <ListItemButton
+                  selected={isActive}
+                  onClick={() => setAdminOpen(!adminOpen)}
+                  sx={{
+                    "&.Mui-selected": { bgcolor: "rgba(0, 230, 118, 0.1)" },
+                    "&:hover": { bgcolor: "rgba(0, 230, 118, 0.05)" },
+                  }}
+                >
+                  <ListItemIcon sx={{ color: isActive ? "primary.main" : "text.secondary" }}>
+                    {item.icon}
+                  </ListItemIcon>
+                  <ListItemText primary={item.label} />
+                  {adminOpen ? <ExpandLess /> : <ExpandMore />}
+                </ListItemButton>
+                <Collapse in={adminOpen} timeout="auto" unmountOnExit>
+                  <List component="div" disablePadding>
+                    {item.children.map((child) => (
+                      <ListItemButton
+                        key={child.path}
+                        selected={location.pathname === child.path}
+                        onClick={() => handleNav(child.path)}
+                        sx={{ pl: 4 }}
+                      >
+                        <ListItemIcon sx={{ color: location.pathname === child.path ? "primary.main" : "text.secondary", minWidth: 36 }}>
+                          {child.icon}
+                        </ListItemIcon>
+                        <ListItemText primary={child.label} />
+                      </ListItemButton>
+                    ))}
+                  </List>
+                </Collapse>
+              </Box>
+            )
+          }
+          return (
+            <ListItemButton
+              key={item.path}
+              selected={location.pathname === item.path || (item.path !== "/" && location.pathname.startsWith(item.path))}
+              onClick={() => handleNav(item.path)}
+              sx={{
+                "&.Mui-selected": { bgcolor: "rgba(0, 230, 118, 0.1)" },
+                "&:hover": { bgcolor: "rgba(0, 230, 118, 0.05)" },
+              }}
+            >
+              <ListItemIcon sx={{ color: location.pathname.startsWith(item.path) ? "primary.main" : "text.secondary" }}>
+                {item.icon}
+              </ListItemIcon>
+              <ListItemText primary={item.label} />
+            </ListItemButton>
+          )
+        })}
       </List>
     </Box>
   )

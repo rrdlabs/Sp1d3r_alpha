@@ -11,6 +11,7 @@ services:
       DIRECTOR_DATA_DIR: /data
     volumes:
       - director-data:/data
+      - /var/run/docker.sock:/var/run/docker.sock
 
   picaso:
     build:
