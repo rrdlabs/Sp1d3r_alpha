@@ -7,6 +7,60 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
+## 2026-07-11
+
+### Project
+- **Docker to pm2 migration**: All 9 microservices now run under pm2 instead of Docker containers. Data migrated to /var/lib/sp1d3r/{service}/. pm2 save for boot persistence.
+- **Nginx proxy**: All 9 services proxied through nginx at d31337m3.com with SSL + SPA fallback.
+- **Super admin**: Created and promoted (admin/Kronik4life!!2026!!).
+
+### cityhall (v0.2.0 → v0.3.0)
+- **Suspend/unsuspend users**: POST /admin/users/{id}/suspend, POST /admin/users/{id}/unsuspend with reason.
+- **Node operator management**: POST /admin/users/{id}/set-nodeop, POST /admin/users/{id}/remove-nodeop, GET /admin/node-operators.
+- **Node enrollment tokens**: NodeEnrollToken model + POST /admin/node-tokens (create), GET /admin/node-tokens (list), POST /admin/node-tokens/{id}/revoke, POST /admin/node-tokens/use (public enrollment endpoint).
+- **Internal node check**: GET /internal/node-check?user_id=X for cross-service nodeop verification.
+- **Migration 003**: Added is_suspended + suspended_reason columns.
+- **Migration 004**: Created node_enroll_tokens table.
+
+### sp1d3r (v0.3.0 → v0.4.0)
+- **Task queue**: File-based task queue (task_queue.py) with create/assign/complete lifecycle. Tasks stored in tasks.json.
+- **Task endpoints**: GET /v1/tasks (list), POST /v1/tasks/create (admin creates crawl tasks), GET /v1/tasks/{id} (details), GET /v1/tasks/pending (agent polls), POST /v1/tasks/result (agent submits results).
+- **Enhanced sync endpoint**: GET /v1/chain/sync now returns height + tip_hash for proper chain state.
+- **Enhanced peers endpoint**: POST /v1/chain/peers now accepts JWT auth headers.
+- **Task execution**: POST /v1/tasks/result now performs actual crawl - fetches URLs, encrypts payloads with recipient key, commits to chain, saves findings.
+
+### director (v0.1.0 → v0.2.0)
+- **Remote node tracking**: POST /services/{name}/heartbeat now stores pubkey, height, version fields.
+- **Nodes endpoint**: GET /nodes lists all connected node agents with status/height/version.
+- **PM2 log reading**: /logs/{name} reads from ~/.pm2/logs/ instead of Docker socket.
+- **Service restart/stop**: POST /services/{name}/restart, POST /services/{name}/stop (now via pm2).
+
+### node-agent (v0.1.0-beta) — NEW
+- **Lightweight Python agent**: Single-file service (~300 lines) for user-hosted peer nodes.
+- **CityHall authentication**: JWT-based auth with username/password or pre-authenticated token.
+- **Peer registration**: Registers as peer on sp1d3r chain with ed25519 keypair.
+- **Heartbeat loop**: Sends periodic heartbeats to director with pubkey/height/version.
+- **Chain sync**: Polls chain state and tracks height.
+- **Crawl task execution**: Fetches URLs, submits content hashes to sp1d3r for encryption and chain commit.
+- **Docker image**: Dockerfile for easy deployment (~50MB image).
+- **Persistent keypair**: Ed25519 keypair stored in /data/node_key.seed.
+
+### banker
+- **Node operator support**: GET /node-check, GET /subscription-status for nodeop verification.
+- **Auto-free tier**: Node operators automatically get free active Professional subscription.
+- **Crypto verification**: On-chain tx validation via RPC (checks recipient, ERC20 transfer event, amount, tx status).
+- **Auto-suspend**: 3 failed crypto verification attempts → auto-suspend account.
+
+### frontend
+- **Admin NodeManagement**: 5 tabs - Live Nodes (from director), Node Operators, Peers, Tasks (with create dialog), IP Blacklist.
+- **Admin ServiceMonitor**: Restart/kill buttons per service.
+- **Admin Documents**: Template CRUD (create/preview/edit/delete via historian+lawyer).
+- **User Dashboard**: Chain status cards, connected nodes table, crawl runner.
+- **SubscriptionOnboarding**: Nodeop detection (auto free pro), crypto tx verification, Interac confirmation.
+- **Layout update**: Node Management replaces Network tab, Documents added.
+
+---
+
 ## 2026-07-08
 
 ### sp1d3r (v0.1.0 → v0.2.0)

@@ -1,51 +1,131 @@
-Here is a clean, professional, and well-structured rewrite of your project's root documentation. I have fixed the typos, smoothed out the sentence structures, and organized it into a clear architectural overview.
+# d31337m3 — Architectural Overview
+
+**d31337m3** ("Delete Me") is a privacy and reputation management SaaS platform. It gives users tooling to monitor, manage, and scrub their personal information from data broker sites across the web. The platform is built as a network of independent microservices, a shared PostgreSQL database, a custom proof-of-authority blockchain, and a distributed crawler network operated by volunteer node operators.
 
 ---
 
-# d31337m3_ORM_alpha: Master Repository Overview
+## Services
 
-This file resides at the root of the master repository for the **d31337m3_ORM_alpha** project. This repository contains several sub-repositories, each functioning as an independent service or handler. Together, these microservices combine to power the **d31337m3.com** SaaS platform.
+| Service | Port | Role |
+|---|---|---|
+| **CityHall** | 8000 | User identity, authentication, onboarding, RBAC, blockchain key linkage |
+| **Historian** | 8100 | Audit trail and event logging |
+| **Lawyer** | 8200 | Legal workflow and compliance operations |
+| **Inboxer** | 8300 | Custom SMTP provider, internal staff chat, customer support chat |
+| **Director** | 8400 | Microservices orchestrator — health checks, service registry, lifecycle management |
+| **Picaso** | 8500 | Frontend UI provider — landing pages, dashboards, brand assets |
+| **Spiderwire** | 8600 | Inter-service communication fabric, heartbeat/state sync |
+| **Banker** | 8700 | Billing and subscription management (Stripe integration) |
+| **Sp1d3r** | 9000 | Core engine — PoA blockchain, distributed crawler, task queue, P2P gossip |
 
-## Microservices Breakdown
+### Frontend
 
-### 1. Sp1d3r
+| Path | Purpose |
+|---|---|
+| `frontends/sp1d3r.d31337m3.com/` | Web interface served by Picaso |
 
-**Role:** Main Scraper, Data Aggregator, Threat Discovery, and Blockchain Engine.
+### Node Agent
 
-* **Core Functions:** Handles data scraping, aggregation, and threat discovery. It initializes the blockchain, manages all read/write data pipeline operations for the chain, and exposes the API required for other services to interact with the distributed network.
-* **Node-Mode:** Sp1d3r can be run completely independently of the other services. In "node-mode," it runs on volunteer machines to scrape/aggregate user data and keywords from brokers across the web, effectively distributing, securing, and strengthening the overall platform.
-* **Access Control:** Users must onboard and enroll to receive a blockchain access key. Additionally, the user's database profile must have the `is_nodeop` flag set to `True`. If this flag is missing or false, Sp1d3r will fail loudly and refuse to enter node-mode. Authentication/sign-in is strictly required for all operations, including local mode.
+The **node-agent** is a lightweight Python process deployed in Docker on volunteer operator machines. It authenticates with CityHall, registers as a peer on the Sp1d3r chain, syncs chain state, participates in P2P gossip, and polls for crawl tasks. Each agent maintains its own Ed25519 identity and persistent keypair.
 
-### 2. Spiderwire
+---
 
-**Role:** Core Networking, Communication, and Identity Management.
+## Service Communication
 
-* **Networking & Syncing:** Manages the core communication fabric between services, including heartbeat/health checks, state syncing, and future-proof stubs for Bluetooth connectivity.
-* **Identity & User Management (Cityhall):** Functions as the user management layer handling onboarding, role enrollment, authentication (login/logoff), profile management, and coordinating the link between user data on the blockchain and user profiles in the database.
-* **Service Integration:** Requires a tightly coupled, highly audited connection with `Sp1d3r` to ensure peak performance and security. Except for onboarding, role management, and profiles (which are handled internally), all other graphical user interfaces (GUIs), SPAs, and UI dialogues are deferred to `Picaso`.
+Services communicate over HTTP on localhost. The **Director** acts as the central service registry — each service registers itself on boot and sends periodic heartbeats. **Spiderwire** provides the communication backbone for health checks and state synchronization. **CityHall** is the sole source of user identity and authentication tokens.
 
-### 3. Picaso
+P2P communication between Sp1d3r nodes uses signed HTTP requests with Ed25519 challenge-response authentication. Gossip messages are serialized as packed transactions and propagated to all known peers.
 
-**Role:** Main User Experience (UX) and User Interface (UI) Provider.
+```
+User/Frontend
+      |
+  [Picaso] ──── UI
+      |
+  [CityHall] ──── Auth / Identity
+      |
+  [Director] ──── Service Registry / Orchestrator
+      |
+  [Sp1d3r] ───── Chain + Crawler + Task Queue
+      |                |
+  [Node Agents] ── (Docker, volunteer machines)
+```
 
-* **Core UI Delivery:** Renders and delivers web- and app-based interfaces for the entire platform (excluding the authentication, onboarding, and role administration dialogues served directly by `Spiderwire/Cityhall`).
-* **Components:** Manages landing pages, settings panels, and various operational dashboards (User, Support, Admin, Workforce, etc.).
-* **Asset Management:** Responsible for serving marketing and brand assets (logos, icons, themes, favicons, etc.) via the `/web3/brand_assets` directory. All deliverable frontend code (HTML, JavaScript, CSS) is stored within the service's `/web3/content` directory.
+---
 
-### 4. Director
+## Deployment Model
 
-**Role:** Microservices Orchestrator and Resource Manager.
+**Application services** run under **pm2** on the host. The pm2 ecosystem config is at `microservices/ecosystem.config.js`.
 
-* **Orchestration:** Coordinates, monitors, starts, and stops services dynamically based on demand and environmental context (Data Center, Server, Node, Home User, Web App, etc.).
-* **Health & Command:** Works closely with `Spiderwire` to provide rich health metrics, statistical tracking, and command-center functionality across private, local/intranet, and public internet nodes.
-* **Lifecycle & Security:** Ensures services boot in the correct sequential order. On boot, it fetches, refreshes, and caches required environment secrets via **Infisical**.
-* **Resource Monitoring:** Maximizes platform stability by monitoring memory usage, identifying stalled applications, and automatically restarting compromised services.
+**Infrastructure services** run in Docker:
+- **PostgreSQL** — shared database for CityHall (and by extension all services that query user data)
+- **Node agents** — deployed per-operator via Dockerfile at `microservices/node-agent/Dockerfile`
 
-### 5. Inboxer
+There is also a `microservices/docker-compose.yml` that can run all application services in Docker for development, but the production model is pm2 + host PostgreSQL.
 
-**Role:** Custom SMTP Provider and Internal/External Chat Service.
+---
 
-* **Communications Framework:** Provides the underlying infrastructure for internal staff communication and external customer support.
-* **Custom SMTP:** Handles outgoing mail delivery utilizing configuration properties (SMTP host, username, password, port, and "send from" addresses) managed securely via Infisical.
-* **Support Chat:** Customer-facing chat features persistent storage via a PostgreSQL database and supports file attachments. For security and integrity, entire conversations are encrypted and cryptographically signed using the blockchain.
-* **Staff Messaging:** Operates on the same secure infrastructure as support chat but is strictly provisioned for internal staff, featuring richer status metadata such as team schedules, role assignments, and unread conversation tracking.
+## Security Model
+
+### Authentication
+
+- **Password auth**: bcrypt-hashed passwords, JWT tokens (HS256, 24h TTL) issued by CityHall
+- **Ed25519 key auth**: challenge-response flow — server issues a 32-byte random challenge, client signs it with their Ed25519 private key, server verifies and issues JWT
+- **P2P auth**: all inter-node HTTP requests are signed with Ed25519 (`X-Node-Pubkey` + `X-Node-Signature` headers)
+
+### Role-Based Access Control
+
+Roles are additive boolean columns on the `users` table:
+
+| Role | Purpose |
+|---|---|
+| `is_user` | Base role, set on registration |
+| `is_nodeop` | Node operator — can run a crawler node |
+| `is_tech_op` | Technical support |
+| `is_chat_op` | Chat moderation |
+| `is_employee` | Internal staff flag |
+| `is_admin` | Full admin access |
+| `is_super_admin` | Can promote other admins |
+
+### Blockchain Security
+
+- **Proof-of-Authority** consensus — validator seats limited to hardcoded core infrastructure keys
+- Node enrollment tokens issued by admins, stored in `node_enroll_tokens` table
+- Binary self-check: nodes hash their own executable and submit an `APP_SIG_VERIFY` transaction; mismatch triggers quarantine
+- Plaintext PII guard: any transaction containing raw emails, SSNs, or phone numbers is rejected and the sender is stripped from the authenticated node set
+
+### Node Enrollment
+
+1. Admin creates a node enrollment token via `POST /admin/node-tokens`
+2. Volunteer uses the token to register via `POST /admin/node-tokens/use`
+3. User is created with `is_nodeop=True`
+4. Node agent authenticates, generates an Ed25519 keypair, and registers as a peer on the chain
+
+---
+
+## Source Layout
+
+```
+d31337m3/
+├── agents.md                          # This file
+├── frontends/
+│   └── sp1d3r.d31337m3.com/          # Web frontend
+└── microservices/
+    ├── ecosystem.config.js            # pm2 process config
+    ├── docker-compose.yml             # Docker dev stack
+    ├── cityhall/                       # Identity & auth (FastAPI + Alembic)
+    ├── sp1d3r/                         # Chain + crawler + task queue
+    │   ├── app.py                      # HTTP server + API
+    │   ├── task_queue.py               # Task state management
+    │   └── src/
+    │       ├── d31337m3_chain/         # PoA blockchain core
+    │       ├── d31337m3_crawler/       # Encrypted crawler worker
+    │       └── d31337m3_core/          # Config + orchestrator
+    ├── node-agent/                     # Volunteer node agent (Docker)
+    ├── director/                       # Service orchestrator
+    ├── picaso/                         # Frontend UI
+    ├── spiderwire/                     # Communication fabric
+    ├── inboxer/                        # SMTP + chat
+    ├── banker/                         # Billing (Stripe)
+    ├── historian/                      # Audit trail
+    └── lawyer/                         # Legal workflow
+```

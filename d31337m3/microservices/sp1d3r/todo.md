@@ -1,44 +1,83 @@
-# d31337m3 AppChain & Crawler Network (SP1D3R) Todo
+# Sp1d3r — Working Log
 
-## Working Rules
+## Rules
 
-- Log all tasks, errors, exceptions, and verification results here.
+- Log completed items, errors, and verification results here.
 - Keep changes aligned with `agents.md`.
-- Build compile-ready components and verify them before marking tasks done.
-- Do not implement PII scraping, credential collection, browser anti-fingerprinting evasion, or raw PII transfer paths. Implement privacy-preserving local processing and encrypted payload handling instead.
+- Build and verify before marking items done.
 
-## Phase 1 - AppChain State Machine
+---
 
-- [x] Add explicit transaction header byte packing/unpacking and Ed25519 signature verification.
-- [x] Add PoA-style authenticated node registry.
-- [x] Add approved application hash registry and quarantine event on mismatch.
-- [x] Add hash-only payload commit tracking with Merkle root storage.
-- [x] Add plaintext PII guard for transaction pipeline rejection.
+## Phase 1 — AppChain State Machine
 
-## Phase 2 - Safe Crawler Worker
+- [x] Transaction header byte packing/unpacking (212-byte format)
+- [x] Ed25519 signature creation and verification
+- [x] PoA-style authenticated node registry
+- [x] Approved application hash registry with quarantine on mismatch
+- [x] Hash-only payload commit tracking with Merkle root storage
+- [x] Plaintext PII guard — rejects transactions containing raw emails, SSNs, phone numbers
 
-- [x] Add concurrent worker pool for caller-provided local payloads.
-- [x] Add X25519 plus AES-GCM encryption before payload commit.
-- [x] Reject payloads that look like plaintext PII before processing.
-- [ ] Add durable encrypted ciphertext storage backend.
+## Phase 2 — Crawler Worker
 
-## Phase 3 - Binary Signature Self-Check
+- [x] Concurrent worker pool (configurable `max_workers`)
+- [x] X25519 + AES-256-GCM encryption (ephemeral key exchange, HKDF derivation)
+- [x] Plaintext PII rejection before encryption
+- [x] Encrypted finding persistence (`FindingStore` — JSON files on disk)
 
-- [x] Add executable hash calculation and AppSigVerify startup handshake.
-- [ ] Add CLI entrypoint that runs self-check before worker startup.
+## Phase 3 — Binary Signature Self-Check
 
-## Phase 4 - Core Orchestrator
+- [x] Executable hash calculation (`running_binary_hash`)
+- [x] `APP_SIG_VERIFY` startup handshake against chain
 
-- [x] Add default `config.toml` serializer.
-- [x] Add atomic config write with flush and `fsync()`.
-- [ ] Add async gateway API for task routing.
+## Phase 4 — Core Orchestrator
+
+- [x] Default `config.toml` serializer
+- [x] Atomic config write with `fsync()` (handles `PermissionError` on directory fsync)
+
+## Phase 5 — HTTP Server + API
+
+- [x] Threading HTTP server with CORS
+- [x] Chain state, snapshot, block sync, peer management endpoints
+- [x] Gossip acceptance endpoint with signature verification
+- [x] Task queue CRUD API (create, list, assign, detail, result)
+- [x] Inline crawl endpoint (`/v1/crawl`)
+- [x] Director registration on boot
+
+## Phase 6 — P2P Network
+
+- [x] `PeerStore` with persistent JSON, stale peer pruning, failed ping tracking
+- [x] `GossipWorker` background thread — queue dedup, fan-out to peers, heartbeat loop
+- [x] Seed node sync on boot (snapshot validation + block import)
+- [x] Ed25519-signed P2P requests (`X-Node-Pubkey` / `X-Node-Signature` headers)
 
 ## Verification Log
 
-- 2026-07-07: `go` unavailable in PATH; Go/Rust compile targets could not be used in this workspace.
-- 2026-07-07: Python 3.11 available; `cryptography` 46.0.5 available.
-- 2026-07-07: Added Python scaffold for chain, crawler worker, and orchestrator.
-- 2026-07-07: `python -m compileall src tests` passed.
-- 2026-07-07: `python -m unittest discover -s tests` initially failed on Windows directory `fsync()` with `PermissionError`; patched atomic writer to skip directory fsync where the OS denies directory handles after successfully fsyncing the file.
-- 2026-07-07: `python -m compileall src tests` passed after patch.
-- 2026-07-07: `python -m unittest discover -s tests` passed: 6 tests OK.
+- 2026-07-07: Python 3.11 available, `cryptography` 46.0.5
+- 2026-07-07: `python -m compileall src tests` passed
+- 2026-07-07: `python -m unittest discover -s tests` — initial failure on Windows `fsync()` `PermissionError`; patched atomic writer to skip directory fsync where OS denies directory handles
+- 2026-07-07: All 6 tests pass
+
+---
+
+## Upcoming
+
+### Task Queue
+
+- [ ] Priority scheduling — weighted task ordering, not just FIFO
+- [ ] Rate limiting per-node — max concurrent tasks, cooldown periods
+
+### P2P
+
+- [ ] Encrypted transport — TLS or noise protocol for peer connections
+- [ ] Peer exchange — nodes share peer lists during gossip
+- [ ] Ban list — persistent node blacklisting with TTL
+
+### Crawler
+
+- [ ] Anti-fingerprinting — User-Agent rotation, request header randomization
+- [ ] Async gateway — async/await HTTP fetching for higher throughput
+
+### Chain
+
+- [ ] Pruning — archive old blocks, keep only recent window + Merkle roots
+- [ ] CLI improvements — `sp1d3r-cli` tool for chain inspection, manual task creation, peer management

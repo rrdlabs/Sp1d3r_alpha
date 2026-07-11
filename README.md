@@ -1,8 +1,9 @@
 
+# d31337m3 (Pronounced: Delete Me)
 
-# D31337m3 (Pronouced: Delete Me) Privacy and Online reputation Management SaaS Platform
+**Privacy and Reputation Management SaaS Platform**
 
-**d31337m3** is an advanced SaaS platform that combines a **privacy and reputation management web app with distributed crawler/scraper network** with a custom **Proof-of-Authority AppChain (blockchain)**for securing user data and immutable proof of takedown notice delivery, and identity verification, an **onboarding/user management gateway** and a automated Legal document Generation with signature signing microservice. It scrapes data from web data brokers,search engine indexes (Google, Bing, Yahoo etc), based on users entered profile data in addition to users selected custom keywords, encrypts findings client-side (E2EE) to further protect users, writing only the cryptographic hashes that secured the data to the blockchain, and provides identity, secure messaging, legal document generation and signing, and the frontend UI services.
+d31337m3 is a privacy and reputation management platform combining a distributed crawler network with a custom Proof-of-Authority AppChain. It scrapes data from web brokers and search engine indexes, encrypts findings, commits cryptographic proofs to an immutable blockchain, and provides identity management, legal document generation, secure messaging, and a full admin/user UI.
 
 > **Status: ALPHA** — unstable, incomplete, not production-ready.
 
@@ -16,120 +17,92 @@
 ├────────────┬──────────┬──────────┬────────┬─────────┬──────────┬───────────┤
 │  CityHall  │ Director │ Historian│ Lawyer │ Inboxer │  Picaso  │  Sp1d3r   │
 │ (8000)     │ (8400)   │ (8100)   │ (8200) │ (8300)  │ (8500)   │ (9000)    │
-│  Onboarding │  Orch.   │  SOR     │ Legal  │ Msging  │ UI/UX    │ Chain +   │
-│  Gateway    │          │  Store   │  Docs   │  SMTP   │  Delivery│ Crawler   │
+│  Auth &    │  Orch.   │  SOR     │ Legal  │ Msging  │ UI/UX    │ Chain +   │
+│  Onboard   │  Health  │  Store   │  Docs  │  SMTP   │ Delivery │ Crawler   │
 ├────────────┴──────────┴──────────┴────────┴─────────┴──────────┴───────────┤
-│                           Spiderwire (8600)                                 │
-│                     Networking & Identity Fabric                            │
+│  Banker (8700)           │  Spiderwire (8600)                               │
+│  Subscriptions/Payments  │  Networking Fabric                               │
+├──────────────────────────┴──────────────────────────────────────────────────┤
+│  React Frontend (sp1d3r.d31337m3.com) — Admin + User Dashboard             │
 ├─────────────────────────────────────────────────────────────────────────────┤
-│                           React Frontend (sp1d3r.d31337m3.com)              │
-│                    API test panel for crawl + health checks                  │
+│  Node Agent (Docker) — Remote peer nodes for distributed crawling          │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
+## Services
+
+All 9 microservices run under **pm2** on the host (not as Docker containers). PostgreSQL runs in a Docker container (`backend-postgres-1`) on port 5432. Node Agents run in Docker containers deployed to user machines.
+
+| Service | Port | Role |
+|---------|------|------|
+| **CityHall** | 8000 | User auth, RBAC, enrollment, admin CRUD — FastAPI + PostgreSQL |
+| **Historian** | 8100 | Encrypted record store, document templates, broker data |
+| **Lawyer** | 8200 | Legal document generation from templates with digital signatures |
+| **Inboxer** | 8300 | Internal messaging, customer support chat, SMTP email delivery |
+| **Director** | 8400 | Service orchestration, health monitoring, remote node tracking |
+| **Picaso** | 8500 | Frontend SPA serving, file upload management, traffic reporting |
+| **Spiderwire** | 8600 | Networking fabric (placeholder) |
+| **Banker** | 8700 | Subscription/payment management (Stripe, Interac e-transfer, crypto) |
+| **Sp1d3r** | 9000 | Custom PoA AppChain, crawler engine, task queue, P2P gossip |
+
+Data directories: `/var/lib/sp1d3r/{service}/`
+
+---
+
 ## Features
 
-### ✅ Implemented (from source)
+### CityHall — Identity & Access Management
 
-**Identity & Access (CityHall) — FastAPI + PostgreSQL**
-- User registration with Ed25519 keypair generation and referral codes
-- Password & cryptographic key-based authentication (JWT HS256)
-- Role-based access control: `user`, `nodeop`, `tech_op`, `chat_op`, `admin`, `super_admin`
-- Admin user management: list, search, update, delete with pagination
-- Wallet address linking per user
-- Audit logging on auth events
+- JWT authentication (HS256) with password and cryptographic key-based login
+- RBAC roles: `user`, `nodeop`, `tech_op`, `chat_op`, `admin`, `super_admin`
+- Admin user CRUD with search, pagination, and audit logging
+- Node operator management with enrollment tokens
+- Email verification and rate limiting
+- Ed25519 keypair generation for cryptographic authentication
 
-**Crawler & Blockchain Engine (Sp1d3r) — Python, Ed25519, SHA-256, Merkle**
-- Custom Proof-of-Authority AppChain with compact binary transaction format (212 bytes/tx)
+### Sp1d3r — Blockchain & Crawler Engine
+
+- Custom Proof-of-Authority AppChain with compact binary transactions (212 bytes/tx)
 - Three transaction types: `NODE_AUTH` (0x01), `APP_SIG_VERIFY` (0x02), `PAYLOAD_COMMIT` (0x03)
 - Ed25519 digital signatures with full verification
 - Merkle tree for payload root commitment
-- PII detection and alert system notifiying user when their info is discovered online and onchain.
+- PII detection with on-chain alert system
 - X25519 + AES-256-GCM end-to-end encryption for crawler payloads
-- Binary hash self-check / quarantine enforcement
-- Atomic config writes via `fsync()`-guaranteed writes
-- 6 passing unit tests covering chain state, encryption, and config
+- Binary hash self-check and quarantine enforcement
+- P2P gossip protocol, peer store, chain sync from seed
+- Task queue for distributed crawling across node agents
 
-**Service Orchestration (Director)**
-- Service registry (CRUD), health tracking, heartbeat monitoring
+### Director — Service Orchestration
+
+- Service registry (CRUD) with health tracking and heartbeat monitoring
 - Automatic restart reconciliation on failure threshold breach
-- Traffic/alert logging
+- Remote node tracking for distributed peer nodes
+- PM2 log reading and platform health checks
+- IP blacklist management
 
-**System of Record (Historian)**
-- Encrypted-at-rest JSON key-value store (hex-based "encryption")
-- Template and broker data management for document generation
+### Banker — Payments & Subscriptions
 
-**Legal Document Generation (Lawyer)**
-- Fetches templates from Historian, fills with the offending broker and violating data via Python `str.format()`
-- Generates filled documents with `[digital-signature]` placeholder and required user info
-- Makes available a completed, signed pdf copy for user download/print etc.
-- If enabled submits a signed copy to the offending broker electronically via email, POST, FAX etc.
-- Prepares escalation documents if offeding item isnt removed within reasonable time frames.
-- Covers legal documents from all of North America including, Canada, U.S.A, Mexico. With some of these countires smaller
-  state/provincial/county regions being covered under aternate/modified compliancy laws.
-- Strives to be Legal and Fully Qualifying to be legally binding within covered jurisdictions and remaining compliant to
-  covered jusidictions privacy laws.
+- Stripe integration for card payments
+- Interac e-transfer support
+- Cryptocurrency payment verification on-chain
+- Subscription tier management
+- Auto-free tier for node operators
 
-**Messaging & SMTP (Inboxer)**
-- SQLite-backed persistent channel-based, internal(staff chat) interstaff/inter-departmental messaging, as
-  well as providing the infra for active 24/7 online Technical support chat with customers and support staff. Including
-  ability to create / close / review and link service tickets to customers progiles stored in cityhall db. Closeing the human-in-the-loop support system.  
-- Outbound SMTP mail delivery with support@d31337m3.com default sender output with provider-agnostic queuing, and OTP pin genratiom/sending for 2fa, and email address verification during onboardimg.
+### Other Services
 
-**UI Delivery (Picaso)**
-- Static frontend react spa app serving and file upload(admin panel uploads, user screenshots, broker csv updates etc) management
-- Traffic reporting back to Director, allowimg usage metrics per user/region/etc
-- Self-health monitoring with auto-restart logic for all assigned from end serves.
-- lite nginx implementation/configuration built in, and automatic certbot ssl cert install and renewals.
+- **Lawyer**: Fetches templates from Historian, generates legal documents with digital signatures, submits to brokers electronically, prepares escalation documents. Covers jurisdictions across Canada, USA, and Mexico.
+- **Inboxer**: SQLite-backed persistent messaging, internal staff chat, 24/7 customer support chat with ticket linking, OTP/2FA email delivery
+- **Picaso**: Static SPA serving, file upload management, traffic reporting, built-in nginx, auto SSL via certbot
+- **Spiderwire**: Health endpoint, presence detection (placeholder — may be absorbed by other services)
+- **Node Agent**: Authenticates with CityHall, registers as peer, sends heartbeats, syncs chain, executes crawl tasks
 
-**Networking (Spiderwire)**
-- Health endpoint + presence detection, anti-ddos, firewallimg, blacklisting of ips etc.     
+### Frontend
 
-**Frontend (React 19 + TypeScript 6 + Vite 8)**
-- Sp1d3r API test panel: health check and crawl test submission(we be reverted to uiless api only at launch/or admin gated)
-- Configurable API base URL and auth token
-
-### 🚧 Missing / Incomplete
-- **Missing user/admin faceing UI/Frontend react apps**: must implement these asap to finish workload flow testing.
-- **Sp1d3r microservice wrapper**: `POST /v1/crawl` is a stub — accepts URLs but does not invoke the crawler (MUST IMPLEMENT engine)
-- **Crawler engine** (`d31337m3_crawler`): anti-fingerprinting wrapper not wired; no async gateway for task routing
-- **No durable encrypted ciphertext storage** for crawler findings IS in-memory only(IMPLEMENT FULL BLOCKCHAIN FUNC.)
-- **Spiderwire**: only a placeholder — no real networking fabric - may get absorbed by other services.
-- **No CI/CD**, no Kubernetes(CONSIDERING) manifests, no Infisical(IMPLEMENTING ASAP) secrets integration (env vars only)
-- **No blockchain persistence** — chain state is in-memory only (URGENT TODO ITEM)
-
----
-
-## Quick Start
-
-```bash
-# All microservices (7 containers)
-cd d31337m3/microservices
-docker compose up --build
-
-# CityHall onboarding gateway (PostgreSQL + FastAPI)
-cd d31337m3/microservices/cityhall
-docker compose up --build
-
-# Frontend (standalone dev server)
-cd d31337m3/frontends/sp1d3r.d31337m3.com
-npm install && npm run dev
-```
-
----
-
-## Roadmap
-
-| Area | Short-term | Medium-term |
-|------|-----------|-------------|
-| **Chain** | Persist chain state to disk; wire `/v1/crawl` to real crawler engine | CLI entry point for self-check; async gateway for task routing |
-| **Crawler** | Connect anti-fingerprinting wrapper; durable ciphertext storage | Volunteer node protocol; distributed task queue |
-| **CityHall** | Unit tests with `TestClient`; rate limiting; email verification | OAuth2/OIDC federation; MFA |
-| **Networking** | Replace Spiderwire stub with real P2P/gossip fabric | Bluetooth transport |
-| **Infrastructure** | CI/CD pipeline; Infisical secrets management; Kubernetes manifests | Multi-region deployment |
-| **Code quality** | Deduplicate Sp1d3r source; add `node_modules`/`dist` to `.gitignore` | TypeScript strict mode; Python type coverage |
+- React 19 + TypeScript + Vite + MUI v6
+- Admin dashboard: user management, service monitoring, node management (live nodes/tasks/peers/blacklist), document management, pricing
+- User dashboard: chain status, connected nodes, crawl runner
 
 ---
 
@@ -137,62 +110,138 @@ npm install && npm run dev
 
 | Layer | Technology |
 |-------|-----------|
+| Backend | Python 3.13, FastAPI, SQLAlchemy 2.0, Alembic, PostgreSQL 16 |
 | Blockchain | Custom Python — Ed25519, SHA-256, Merkle, PoA |
-| Microservices | Python 3.12, `http.server.ThreadingHTTPServer` |
-| Onboarding Gateway | FastAPI, SQLAlchemy 2.0 (async), Alembic, PostgreSQL 16 |
-| Messaging | SQLite, SMTP (stdlib `smtplib`) |
-| Frontend | React 19.2, TypeScript 6.0, Vite 8.1, Oxlint |
+| Frontend | React 19, TypeScript 6, Vite 8, MUI v6 |
 | Crypto | `cryptography` — Ed25519, X25519, AES-256-GCM, HKDF |
-| Containerization | Docker, docker-compose (all services) |
+| Process | pm2 (all services), Docker (PostgreSQL + node agents only) |
+
+---
+
+## Quick Start
+
+```bash
+# Start all services
+pm2 start d31337m3/microservices/ecosystem.config.js
+
+# Run database migration
+cd d31337m3/microservices/cityhall && PYTHONPATH=. alembic upgrade head
+
+# Build frontend
+cd d31337m3/frontends/sp1d3r.d31337m3.com && npm run build
+
+# Run node agent
+docker run --rm \
+  -e AGENT_USERNAME=xxx -e AGENT_PASSWORD=xxx \
+  -e CITYHALL_URL=https://d31337m3.com/cityhall \
+  -e SP1D3R_URL=https://d31337m3.com/sp1d3r \
+  -e DIRECTOR_URL=https://d31337m3.com/director \
+  d31337m3/node-agent
+```
+
+**Port Map**: 8000=CityHall, 8100=Historian, 8200=Lawyer, 8300=Inboxer, 8400=Director, 8500=Picaso, 8600=Spiderwire, 8700=Banker, 9000=Sp1d3r
 
 ---
 
 <details>
-<summary><b>🧑‍💻 Developer Details — Service Endpoints & Configuration</b></summary>
+<summary><b>Developer Details</b></summary>
 
 ### Service Endpoints
 
+#### CityHall (port 8000)
+
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/auth/register` | User registration |
+| POST | `/auth/login` | Password authentication |
+| POST | `/auth/logout` | Session invalidation |
+| GET | `/auth/challenge` | Cryptographic auth challenge |
+| POST | `/auth/authenticate-with-key` | Key-based authentication |
+| GET | `/users/me` | Current user profile |
+| PUT | `/users/me` | Update profile |
+| POST | `/users/me/generate-keypair` | Generate Ed25519 keypair |
+| GET | `/users/me/public-key` | Get public key |
+| POST | `/users/me/link-wallet` | Link wallet address |
+| GET | `/admin/users` | List users (admin) |
+| GET | `/admin/users/search` | Search users (admin) |
+| GET/PUT/DELETE | `/admin/users/{id}` | User CRUD (admin) |
+| POST | `/enrollment/create` | Create enrollment token (admin) |
+| POST | `/enrollment/redeem` | Redeem enrollment token |
+
+Swagger docs: `http://localhost:8000/docs`
+
+#### Sp1d3r (port 9000)
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/health` | Health check |
+| POST | `/v1/crawl` | Submit crawl URLs (returns task ID) |
+| GET | `/v1/chain` | Get chain state |
+| GET | `/v1/peers` | List connected peers |
+| POST | `/v1/sync` | Sync chain from peer |
+
 #### Director (port 8400)
+
 | Method | Path | Description |
 |--------|------|-------------|
 | GET | `/health` | Health + service count |
 | GET | `/services` | List all registered services |
 | GET | `/services/{name}` | Get service details |
-| GET | `/traffic/frontend` | Frontend traffic stats |
-| GET | `/alerts` | Service alerts |
 | POST | `/services` | Register/update service |
 | POST | `/services/{name}/heartbeat` | Service heartbeat |
 | POST | `/services/{name}/health` | Report health status |
 | POST | `/services/{name}/alert` | Raise alert |
+| GET | `/alerts` | Service alerts |
+| GET | `/traffic/frontend` | Frontend traffic stats |
 | POST | `/traffic/frontend` | Report traffic |
 | POST | `/reconcile` | Auto-restart unhealthy services |
+| GET | `/nodes` | List remote nodes |
+| GET | `/blacklist` | IP blacklist |
+| POST | `/blacklist` | Add IP to blacklist |
 
 #### Historian (port 8100)
+
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/health` | Health |
+| GET | `/health` | Health check |
 | GET | `/records/{key}` | Get encrypted record |
-| GET | `/templates/{name}` | Get document template |
-| GET | `/brokers/{name}` | Get broker data rows |
 | POST | `/records` | Store encrypted record |
-| POST | `/broker-import` | Import broker data |
+| GET | `/templates/{name}` | Get document template |
 | POST | `/templates` | Store template |
+| GET | `/brokers/{name}` | Get broker data rows |
+| POST | `/broker-import` | Import broker data |
 
 #### Lawyer (port 8200)
+
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/health` | Health |
-| POST | `/documents/generate` | Generate document from template + broker data |
+| GET | `/health` | Health check |
+| POST | `/documents/generate` | Generate document from template |
+| GET | `/documents/{id}` | Retrieve generated document |
+| POST | `/documents/{id}/submit` | Submit document to broker |
 
 #### Inboxer (port 8300)
+
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/health` | Health |
-| GET | `/messages?channel=...` | List messages (optional channel filter) |
+| GET | `/health` | Health check |
+| GET | `/messages` | List messages (optional `?channel=` filter) |
 | POST | `/messages` | Send message |
 | POST | `/mail` | Send SMTP email |
 
+#### Banker (port 8700)
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/health` | Health check |
+| GET | `/subscriptions` | List subscription tiers |
+| POST | `/subscriptions/create` | Create subscription |
+| POST | `/payments/stripe` | Process Stripe payment |
+| POST | `/payments/interac` | Process Interac e-transfer |
+| POST | `/payments/crypto` | Verify crypto payment on-chain |
+
 #### Picaso (port 8500)
+
 | Method | Path | Description |
 |--------|------|-------------|
 | GET | `/health` | Health + restart/failure stats |
@@ -202,91 +251,92 @@ npm install && npm run dev
 | POST | `/health/report` | Health report (triggers auto-restart) |
 | POST | `/restart` | Restart service |
 
-#### Sp1d3r (port 9000)
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/health` | Health |
-| POST | `/v1/crawl` | Submit crawl URLs (returns task ID) |
-
 #### Spiderwire (port 8600)
+
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/health` | Health |
+| GET | `/health` | Health check |
 | POST | `/presence` | Record presence |
-
-#### CityHall (port 8000 — FastAPI, Swagger at `/docs`)
-See `d31337m3/microservices/cityhall/app/routers/` for full routes. Key groups:
-- `POST /auth/register`, `POST /auth/login`, `POST /auth/logout`
-- `GET /auth/challenge`, `POST /auth/authenticate-with-key`
-- `GET /users/me`, `PUT /users/me`
-- `POST /users/me/generate-keypair`, `GET /users/me/public-key`, `POST /users/me/link-wallet`
-- `GET /admin/users`, `GET /admin/users/search`, admin CRUD by ID
 
 ### Environment Variables
 
 | Variable | Default | Service |
 |----------|---------|---------|
-| `DIRECTOR_PORT` | `8400` | Director |
-| `DIRECTOR_DATA_DIR` | `/tmp/director-data` | Director |
-| `DIRECTOR_RESTART_THRESHOLD` | `2` | Director |
+| `CITYHALL_PORT` | `8000` | CityHall |
+| `CITYHALL_DATABASE_URL` | `postgresql+asyncpg://cityhall:cityhall@localhost:5432/cityhall` | CityHall |
+| `CITYHALL_JWT_SECRET_KEY` | `cityhall-dev-secret-key-change-in-production` | CityHall |
 | `HISTORIAN_PORT` | `8100` | Historian |
-| `HISTORIAN_DATA_DIR` | `/tmp/historian-data` | Historian |
+| `HISTORIAN_DATA_DIR` | `/var/lib/sp1d3r/historian` | Historian |
 | `HISTORIAN_ENCRYPTION_KEY` | `dev-only-key` | Historian |
 | `LAWYER_PORT` | `8200` | Lawyer |
 | `HISTORIAN_URL` | `http://127.0.0.1:8100` | Lawyer |
 | `INBOXER_PORT` | `8300` | Inboxer |
-| `INBOXER_DATA_DIR` | `/tmp/inboxer-data` | Inboxer |
+| `INBOXER_DATA_DIR` | `/var/lib/sp1d3r/inboxer` | Inboxer |
 | `INBOXER_SMTP_HOST` | `localhost` | Inboxer |
 | `INBOXER_SMTP_PORT` | `25` | Inboxer |
-| `INBOXER_SMTP_FROM` | `no-reply@example.com` | Inboxer |
+| `INBOXER_SMTP_FROM` | `support@d31337m3.com` | Inboxer |
+| `DIRECTOR_PORT` | `8400` | Director |
+| `DIRECTOR_DATA_DIR` | `/var/lib/sp1d3r/director` | Director |
+| `DIRECTOR_RESTART_THRESHOLD` | `2` | Director |
 | `PICASO_PORT` | `8500` | Picaso |
-| `PICASO_DATA_DIR` | `/tmp/picaso-data` | Picaso |
-| `DIRECTOR_URL` | `http://127.0.0.1:8400` | Picaso, Sp1d3r, Spiderwire |
+| `PICASO_DATA_DIR` | `/var/lib/sp1d3r/picaso` | Picaso |
 | `PICASO_RESTART_THRESHOLD` | `2` | Picaso |
+| `SPIDERWIRE_PORT` | `8600` | Spiderwire |
+| `BANKER_PORT` | `8700` | Banker |
 | `SP1D3R_PORT` | `9000` | Sp1d3r |
 | `SP1D3R_HOST` | `0.0.0.0` | Sp1d3r |
-| `SPIDERWIRE_PORT` | `8600` | Spiderwire |
-| `CITYHALL_DATABASE_URL` | `postgresql+asyncpg://cityhall:cityhall@localhost:5432/cityhall` | CityHall |
-| `CITYHALL_JWT_SECRET_KEY` | `cityhall-dev-secret-key-change-in-production` | CityHall |
-
-### Testing
-
-```bash
-# Sp1d3r blockchain engine tests (6 tests)
-cd d31337m3/microservices/sp1d3r
-python -m unittest discover -s tests
-```
-
-CityHall does not yet have automated tests. Browse API docs at `http://localhost:8000/docs` when running.
+| `DIRECTOR_URL` | `http://127.0.0.1:8400` | Picaso, Sp1d3r, Spiderwire |
+| `SP1D3R_URL` | `http://127.0.0.1:9000` | Node Agent |
 
 ### Project Structure
 
 ```
 d31337m3/
-├── frontends/sp1d3r.d31337m3.com/   React 19 + Vite 8 frontend
+├── frontends/
+│   └── sp1d3r.d31337m3.com/          React 19 + TypeScript + Vite + MUI v6
 ├── microservices/
-│   ├── cityhall/                     FastAPI onboarding gateway
+│   ├── ecosystem.config.js            pm2 process configuration
+│   ├── cityhall/                      FastAPI + PostgreSQL auth service
 │   │   ├── app/
-│   │   │   ├── main.py, config.py, models.py, database.py
-│   │   │   ├── auth.py, blockchain.py, schemas.py
-│   │   │   └── routers/  (auth, users, admin)
-│   │   ├── migrations/               Alembic
-│   │   └── docker-compose.yml        PostgreSQL + CityHall
-│   ├── director/                     Orchestrator
-│   ├── historian/                    Encrypted record store
-│   ├── inboxer/                      Messaging + SMTP
-│   ├── lawyer/                       Document generation
-│   ├── picaso/                       UI delivery
-│   ├── sp1d3r/                       Blockchain + crawler
+│   │   │   ├── main.py               FastAPI app entry
+│   │   │   ├── config.py             Settings & env vars
+│   │   │   ├── database.py           SQLAlchemy async engine
+│   │   │   ├── models.py             ORM models
+│   │   │   ├── schemas.py            Pydantic schemas
+│   │   │   ├── auth.py               JWT & key auth logic
+│   │   │   └── routers/              auth.py, users.py, admin.py
+│   │   ├── migrations/                Alembic
+│   │   └── docker-compose.yml         PostgreSQL container
+│   ├── sp1d3r/                        Blockchain + crawler
 │   │   ├── src/d31337m3_chain/       chain.py, transaction.py, crypto.py, merkle.py, pii_guard.py
 │   │   ├── src/d31337m3_crawler/     worker.py, self_check.py
 │   │   ├── src/d31337m3_core/        config.py, orchestrator.py
-│   │   └── tests/                    6 passing tests
-│   ├── spiderwire/                   Networking stub
-│   └── docker-compose.yml            Orchestrates 7 services
-└── agents.md                         Service overview docs
+│   │   └── tests/                    Blockchain unit tests
+│   ├── director/                      Service orchestration & health
+│   ├── historian/                     Encrypted record store
+│   ├── lawyer/                        Legal document generation
+│   ├── inboxer/                       Messaging + SMTP
+│   ├── picaso/                        UI delivery & file management
+│   ├── banker/                        Payments & subscriptions
+│   └── spiderwire/                    Networking fabric (placeholder)
+├── node-agent/                        Lightweight Python peer agent
+│   ├── Dockerfile
+│   └── agent.py                       CityHall auth, heartbeats, task execution
+└── agents.md                          Service overview docs
 ```
 
-Sp1d3r source also exists at `/Sp1d3r` (root, embedded git repo) — near-identical copy.
+### Testing
+
+```bash
+# Sp1d3r blockchain engine tests
+cd d31337m3/microservices/sp1d3r
+python -m unittest discover -s tests
+
+# CityHall — browse API docs at http://localhost:8000/docs
+
+# Frontend type check
+cd d31337m3/frontends/sp1d3r.d31337m3.com
+npm run typecheck
+```
 
 </details>
