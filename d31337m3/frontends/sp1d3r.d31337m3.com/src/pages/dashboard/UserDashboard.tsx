@@ -22,6 +22,7 @@ import CheckCircleIcon from "@mui/icons-material/CheckCircle"
 import ErrorIcon from "@mui/icons-material/Error"
 import HubIcon from "@mui/icons-material/Hub"
 import AccountTreeIcon from "@mui/icons-material/AccountTree"
+import ComputerIcon from "@mui/icons-material/Computer"
 import { apiRequest } from "../../api/client"
 import { useAuth } from "../../context/AuthContext"
 
@@ -46,6 +47,16 @@ interface Peer {
   last_seen: number
 }
 
+interface LiveNode {
+  name: string
+  pubkey: string
+  height: number
+  version: string
+  status: string
+  healthy: boolean
+  last_seen: number
+}
+
 export default function UserDashboard() {
   const { username } = useAuth()
   const [urls, setUrls] = useState("")
@@ -55,18 +66,21 @@ export default function UserDashboard() {
   const [crawlError, setCrawlError] = useState("")
   const [chainState, setChainState] = useState<ChainState | null>(null)
   const [peers, setPeers] = useState<Peer[]>([])
+  const [liveNodes, setLiveNodes] = useState<LiveNode[]>([])
   const [healthOk, setHealthOk] = useState<boolean | null>(null)
 
   useEffect(() => {
     const loadChain = async () => {
-      const [healthRes, stateRes, peersRes] = await Promise.all([
+      const [healthRes, stateRes, peersRes, nodesRes] = await Promise.all([
         apiRequest("sp1d3r", "GET", "/health"),
         apiRequest<ChainState>("sp1d3r", "GET", "/v1/chain/state"),
         apiRequest<{ peers: Peer[] }>("sp1d3r", "GET", "/v1/chain/peers"),
+        apiRequest<{ nodes: LiveNode[] }>("director", "GET", "/nodes"),
       ])
       setHealthOk(healthRes.ok)
       if (stateRes.ok) setChainState(stateRes.data)
       if (peersRes.ok) setPeers(peersRes.data.peers || [])
+      if (nodesRes.ok) setLiveNodes(nodesRes.data.nodes || [])
     }
     loadChain()
   }, [])
@@ -94,7 +108,7 @@ export default function UserDashboard() {
     }
   }
 
-  const onlinePeers = peers.filter((p) => Date.now() / 1000 - p.last_seen < 300).length
+  const onlineNodes = liveNodes.filter((n) => Date.now() / 1000 - n.last_seen < 120).length
 
   return (
     <Container maxWidth="lg">
@@ -143,21 +157,60 @@ export default function UserDashboard() {
         <Grid size={{ xs: 12, md: 3 }}>
           <Paper sx={{ p: 3 }} variant="outlined">
             <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1 }}>
-              <CheckCircleIcon color={onlinePeers > 0 ? "success" : "warning"} />
-              <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>Peers Online</Typography>
+              <ComputerIcon color={onlineNodes > 0 ? "success" : "warning"} />
+              <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>Nodes Online</Typography>
             </Box>
-            <Typography variant="h3" color={onlinePeers > 0 ? "success.main" : "warning.main"}>
-              {onlinePeers}/{peers.length}
+            <Typography variant="h3" color={onlineNodes > 0 ? "success.main" : "warning.main"}>
+              {onlineNodes}/{liveNodes.length}
             </Typography>
-            <Typography variant="body2" color="text.secondary">connected peers</Typography>
+            <Typography variant="body2" color="text.secondary">connected nodes</Typography>
           </Paper>
         </Grid>
       </Grid>
 
-      {peers.length > 0 && (
+      {liveNodes.length > 0 && (
         <Paper sx={{ p: 3, mt: 3 }} variant="outlined">
           <Typography variant="h6" gutterBottom sx={{ fontFamily: "monospace" }}>
             Connected Nodes
+          </Typography>
+          <TableContainer>
+            <Table size="small">
+              <TableHead>
+                <TableRow>
+                  <TableCell>Name</TableCell>
+                  <TableCell>Height</TableCell>
+                  <TableCell>Version</TableCell>
+                  <TableCell>Status</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {liveNodes.map((n) => {
+                  const online = Date.now() / 1000 - n.last_seen < 120
+                  return (
+                    <TableRow key={n.name}>
+                      <TableCell sx={{ fontFamily: "monospace" }}>{n.name}</TableCell>
+                      <TableCell>{n.height ?? "—"}</TableCell>
+                      <TableCell><Chip size="small" label={n.version || "unknown"} variant="outlined" /></TableCell>
+                      <TableCell>
+                        <Chip
+                          size="small"
+                          label={online ? "online" : "stale"}
+                          color={online ? "success" : "warning"}
+                        />
+                      </TableCell>
+                    </TableRow>
+                  )
+                })}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        </Paper>
+      )}
+
+      {peers.length > 0 && (
+        <Paper sx={{ p: 3, mt: 3 }} variant="outlined">
+          <Typography variant="h6" gutterBottom sx={{ fontFamily: "monospace" }}>
+            Chain Peers
           </Typography>
           <TableContainer>
             <Table size="small">

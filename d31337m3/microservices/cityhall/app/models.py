@@ -51,6 +51,18 @@ class User(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
 
+class NodeEnrollToken(Base):
+    __tablename__ = "node_enroll_tokens"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    token: Mapped[str] = mapped_column(String(36), unique=True, index=True)
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    used_by_user_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    is_revoked: Mapped[bool] = mapped_column(Boolean, default=False)
+
+
 class AuditLog(Base):
     __tablename__ = "audit_logs"
 

@@ -25,6 +25,7 @@ import {
   DialogContent,
   DialogActions,
   Autocomplete,
+  LinearProgress,
 } from "@mui/material"
 import AddIcon from "@mui/icons-material/Add"
 import DeleteIcon from "@mui/icons-material/Delete"
@@ -32,6 +33,8 @@ import HubIcon from "@mui/icons-material/Hub"
 import SecurityIcon from "@mui/icons-material/Security"
 import AccountTreeIcon from "@mui/icons-material/AccountTree"
 import PersonAddIcon from "@mui/icons-material/PersonAdd"
+import PlayArrowIcon from "@mui/icons-material/PlayArrow"
+import ListAltIcon from "@mui/icons-material/ListAlt"
 import { apiRequest } from "../../api/client"
 import { useAuth } from "../../context/AuthContext"
 
@@ -62,6 +65,30 @@ interface NodeOperator {
   wallet_address: string | null
 }
 
+interface LiveNode {
+  name: string
+  pubkey: string
+  height: number
+  version: string
+  status: string
+  healthy: boolean
+  last_seen: number
+}
+
+interface Task {
+  id: string
+  type: string
+  urls: string[]
+  recipient_pubkey: string
+  status: string
+  assigned_to: string | null
+  results: { url: string; content_length: number; content_hash: string }[]
+  failures: { url: string; error: string }[]
+  created_at: number
+  assigned_at: number | null
+  completed_at: number | null
+}
+
 interface UserSearchResult {
   id: string
   username: string
@@ -76,6 +103,8 @@ export default function NodeManagement() {
   const [peers, setPeers] = useState<Peer[]>([])
   const [blacklist, setBlacklist] = useState<BlacklistEntry[]>([])
   const [nodeOperators, setNodeOperators] = useState<NodeOperator[]>([])
+  const [liveNodes, setLiveNodes] = useState<LiveNode[]>([])
+  const [tasks, setTasks] = useState<Task[]>([])
   const [msg, setMsg] = useState("")
   const [error, setError] = useState("")
 
@@ -88,6 +117,11 @@ export default function NodeManagement() {
   const [searchResults, setSearchResults] = useState<UserSearchResult[]>([])
   const [selectedUser, setSelectedUser] = useState<UserSearchResult | null>(null)
   const [searching, setSearching] = useState(false)
+
+  const [createTaskOpen, setCreateTaskOpen] = useState(false)
+  const [taskUrls, setTaskUrls] = useState("")
+  const [taskRecipient, setTaskRecipient] = useState("")
+  const [creatingTask, setCreatingTask] = useState(false)
 
   const loadBlacklist = async () => {
     const res = await apiRequest<{ blacklist: BlacklistEntry[] }>("director", "GET", "/blacklist")
@@ -104,11 +138,31 @@ export default function NodeManagement() {
     if (res.ok) setNodeOperators(res.data.node_operators || [])
   }
 
+  const loadLiveNodes = async () => {
+    const res = await apiRequest<{ nodes: LiveNode[] }>("director", "GET", "/nodes")
+    if (res.ok) setLiveNodes(res.data.nodes || [])
+  }
+
+  const loadTasks = async () => {
+    const res = await apiRequest<{ tasks: Task[] }>("sp1d3r", "GET", "/v1/tasks")
+    if (res.ok) setTasks(res.data.tasks || [])
+  }
+
   useEffect(() => {
     loadBlacklist()
     loadPeers()
     loadNodeOperators()
+    loadLiveNodes()
+    loadTasks()
   }, [])
+
+  const handleRefreshAll = () => {
+    loadBlacklist()
+    loadPeers()
+    loadNodeOperators()
+    loadLiveNodes()
+    loadTasks()
+  }
 
   const handleAddBlacklist = async () => {
     if (!newIp.trim()) return
@@ -177,23 +231,114 @@ export default function NodeManagement() {
     }
   }
 
+  const handleCreateTask = async () => {
+    const urlList = taskUrls.split("\n").map(u => u.trim()).filter(Boolean)
+    if (!urlList.length || !taskRecipient.trim()) return
+    setCreatingTask(true)
+    setError("")
+    const res = await apiRequest<{ task: Task }>("sp1d3r", "POST", "/v1/tasks/create", {
+      type: "crawl",
+      urls: urlList,
+      recipient_pubkey: taskRecipient.trim(),
+    })
+    setCreatingTask(false)
+    if (res.ok) {
+      setMsg(`Task created: ${res.data.task?.id || "ok"}`)
+      setCreateTaskOpen(false)
+      setTaskUrls("")
+      setTaskRecipient("")
+      loadTasks()
+    } else {
+      setError("Failed to create task")
+    }
+  }
+
+  const formatTime = (ts: number | null) => {
+    if (!ts) return "—"
+    return new Date(ts * 1000).toLocaleString()
+  }
+
   return (
     <Container maxWidth="lg">
-      <Typography variant="h4" gutterBottom sx={{ fontFamily: "monospace" }}>
-        Node Management
-      </Typography>
+      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 2 }}>
+        <Typography variant="h4" sx={{ fontFamily: "monospace" }}>
+          Node Management
+        </Typography>
+        <Button onClick={handleRefreshAll}>Refresh All</Button>
+      </Box>
 
       {msg && <Alert severity="success" sx={{ mb: 2 }} onClose={() => setMsg("")}>{msg}</Alert>}
       {error && <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError("")}>{error}</Alert>}
 
       <Paper variant="outlined" sx={{ mb: 3 }}>
         <Tabs value={tab} onChange={(_, v) => setTab(v)} sx={{ borderBottom: 1, borderColor: "divider" }}>
+          <Tab icon={<PlayArrowIcon />} iconPosition="start" label="Live Nodes" />
           <Tab icon={<AccountTreeIcon />} iconPosition="start" label="Node Operators" />
           <Tab icon={<HubIcon />} iconPosition="start" label="Peers" />
+          <Tab icon={<ListAltIcon />} iconPosition="start" label="Tasks" />
           <Tab icon={<SecurityIcon />} iconPosition="start" label="IP Blacklist" />
         </Tabs>
 
         {tab === 0 && (
+          <Box sx={{ p: 3 }}>
+            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 2 }}>
+              <Typography variant="h6">
+                Live Nodes
+                <Chip label={liveNodes.length} size="small" sx={{ ml: 1 }} color={liveNodes.length > 0 ? "success" : "default"} />
+              </Typography>
+              <Button onClick={loadLiveNodes}>Refresh</Button>
+            </Box>
+            <TableContainer>
+              <Table size="small">
+                <TableHead>
+                  <TableRow>
+                    <TableCell>Name</TableCell>
+                    <TableCell>Public Key</TableCell>
+                    <TableCell>Height</TableCell>
+                    <TableCell>Version</TableCell>
+                    <TableCell>Status</TableCell>
+                    <TableCell>Last Seen</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {liveNodes.map((n) => {
+                    const age = Date.now() / 1000 - n.last_seen
+                    const online = age < 120
+                    return (
+                      <TableRow key={n.name} hover>
+                        <TableCell sx={{ fontFamily: "monospace" }}>{n.name}</TableCell>
+                        <TableCell sx={{ fontFamily: "monospace", fontSize: "0.75rem" }}>
+                          {n.pubkey ? `${n.pubkey.slice(0, 20)}...` : "—"}
+                        </TableCell>
+                        <TableCell>{n.height ?? "—"}</TableCell>
+                        <TableCell>
+                          <Chip size="small" label={n.version || "unknown"} variant="outlined" />
+                        </TableCell>
+                        <TableCell>
+                          <Chip
+                            size="small"
+                            label={online ? "online" : age < 600 ? "stale" : "offline"}
+                            color={online ? "success" : age < 600 ? "warning" : "error"}
+                          />
+                        </TableCell>
+                        <TableCell>{formatTime(n.last_seen)}</TableCell>
+                      </TableRow>
+                    )
+                  })}
+                  {liveNodes.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={6} align="center" color="text.secondary">
+                        No nodes connected yet
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          </Box>
+        )}
+
+        {tab === 1 && (
           <Box sx={{ p: 3 }}>
             <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 2 }}>
               <Typography variant="h6">
@@ -246,7 +391,7 @@ export default function NodeManagement() {
           </Box>
         )}
 
-        {tab === 1 && (
+        {tab === 2 && (
           <Box sx={{ p: 3 }}>
             <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 2 }}>
               <Typography variant="h6">
@@ -301,7 +446,69 @@ export default function NodeManagement() {
           </Box>
         )}
 
-        {tab === 2 && (
+        {tab === 3 && (
+          <Box sx={{ p: 3 }}>
+            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 2 }}>
+              <Typography variant="h6">
+                Crawl Tasks
+                <Chip label={tasks.length} size="small" sx={{ ml: 1 }} />
+              </Typography>
+              <Box sx={{ display: "flex", gap: 1 }}>
+                <Button onClick={loadTasks}>Refresh</Button>
+                <Button variant="contained" startIcon={<AddIcon />} onClick={() => setCreateTaskOpen(true)}>
+                  Create Task
+                </Button>
+              </Box>
+            </Box>
+            <TableContainer>
+              <Table size="small">
+                <TableHead>
+                  <TableRow>
+                    <TableCell>Task ID</TableCell>
+                    <TableCell>URLs</TableCell>
+                    <TableCell>Status</TableCell>
+                    <TableCell>Assigned To</TableCell>
+                    <TableCell>Results</TableCell>
+                    <TableCell>Created</TableCell>
+                    <TableCell>Completed</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {tasks.map((t) => (
+                    <TableRow key={t.id} hover>
+                      <TableCell sx={{ fontFamily: "monospace", fontSize: "0.75rem" }}>{t.id.slice(0, 16)}...</TableCell>
+                      <TableCell>{t.urls?.length ?? 0}</TableCell>
+                      <TableCell>
+                        <Chip
+                          size="small"
+                          label={t.status}
+                          color={t.status === "completed" ? "success" : t.status === "failed" ? "error" : t.status === "assigned" ? "warning" : "default"}
+                        />
+                      </TableCell>
+                      <TableCell sx={{ fontFamily: "monospace", fontSize: "0.75rem" }}>
+                        {t.assigned_to ? `${t.assigned_to.slice(0, 12)}...` : "—"}
+                      </TableCell>
+                      <TableCell>
+                        {t.results?.length ?? 0} / {t.failures?.length ?? 0}
+                      </TableCell>
+                      <TableCell>{formatTime(t.created_at)}</TableCell>
+                      <TableCell>{formatTime(t.completed_at)}</TableCell>
+                    </TableRow>
+                  ))}
+                  {tasks.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={7} align="center" color="text.secondary">
+                        No tasks created yet
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          </Box>
+        )}
+
+        {tab === 4 && (
           <Box sx={{ p: 3 }}>
             <Typography variant="h6" gutterBottom>
               IP Blacklist
@@ -440,6 +647,39 @@ export default function NodeManagement() {
         <DialogActions>
           <Button onClick={() => { setAddNodeOpOpen(false); setSelectedUser(null); setSearchQuery(""); setSearchResults([]) }}>Cancel</Button>
           <Button variant="contained" onClick={handleAddNodeOp} disabled={!selectedUser}>Grant Node Op Status</Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={createTaskOpen} onClose={() => setCreateTaskOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle sx={{ fontFamily: "monospace" }}>Create Crawl Task</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            Create a crawl task that will be assigned to the next available node agent.
+          </Typography>
+          {creatingTask && <LinearProgress sx={{ mb: 2 }} />}
+          <TextField
+            fullWidth
+            multiline
+            rows={4}
+            label="URLs (one per line)"
+            value={taskUrls}
+            onChange={(e) => setTaskUrls(e.target.value)}
+            sx={{ mb: 2 }}
+            placeholder={"https://example.com\nhttps://example.org"}
+          />
+          <TextField
+            fullWidth
+            label="Recipient Public Key (hex)"
+            value={taskRecipient}
+            onChange={(e) => setTaskRecipient(e.target.value)}
+            placeholder="ed25519 public key in hex for encrypted payload"
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setCreateTaskOpen(false)}>Cancel</Button>
+          <Button variant="contained" onClick={handleCreateTask} disabled={creatingTask || !taskUrls.trim() || !taskRecipient.trim()}>
+            Create Task
+          </Button>
         </DialogActions>
       </Dialog>
     </Container>

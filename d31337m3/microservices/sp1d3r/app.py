@@ -28,6 +28,8 @@ from d31337m3_chain import (
 from d31337m3_chain.transaction import TRANSACTION_SIZE
 from d31337m3_crawler import CrawlerWorker, FindingStore, WorkerConfig
 
+from task_queue import TaskQueue
+
 
 class CORSMixin:
     def end_headers(self):
@@ -80,6 +82,7 @@ if identity.public_key not in chain.authenticated_nodes:
     chain.submit(auth_tx)
 
 gossip_worker = GossipWorker(identity, peer_store, interval=2.0)
+task_queue = TaskQueue(DATA_DIR)
 
 
 def _sync_from_seed(seed_url: str) -> bool:
@@ -210,9 +213,30 @@ class Sp1d3rHandler(CORSMixin, BaseHTTPRequestHandler):
             return
 
         if path == "/v1/tasks/pending":
-            # For beta, no tasks to distribute yet
-            # When crawl tasks are ready, this will check a task queue
-            self._send(200, {"status": "no_tasks"})
+            pubkey = self.headers.get("X-Node-Pubkey", "")
+            if not pubkey:
+                self._send(400, {"error": "X-Node-Pubkey header required"})
+                return
+            task = task_queue.assign_next(pubkey)
+            if task is None:
+                self._send(200, {"status": "no_tasks"})
+            else:
+                self._send(200, {"status": "assigned", "task": task.to_dict()})
+            return
+
+        if path == "/v1/tasks":
+            status_filter = query.get("status", [None])[0]
+            tasks = task_queue.list_tasks(status=status_filter)
+            self._send(200, {"tasks": [t.to_dict() for t in tasks]})
+            return
+
+        if path.startswith("/v1/tasks/") and path != "/v1/tasks/pending" and path != "/v1/tasks/create" and path != "/v1/tasks/result":
+            task_id = path[len("/v1/tasks/"):]
+            task = task_queue.get_task(task_id)
+            if task is None:
+                self._send(404, {"error": "task_not_found"})
+            else:
+                self._send(200, task.to_dict())
             return
 
         self._send(404, {"error": "not_found"})
@@ -297,14 +321,58 @@ class Sp1d3rHandler(CORSMixin, BaseHTTPRequestHandler):
         if path == "/v1/tasks/result":
             payload = self._read_json()
             task_id = payload.get("task_id", "")
-            pubkey = payload.get("pubkey", "")
-            results = payload.get("results", [])
-            failures = payload.get("failures", [])
+            task = task_queue.get_task(task_id)
+            if task is None:
+                self._send(404, {"error": "task_not_found"})
+                return
+            results: list[dict[str, Any]] = []
+            failures: list[dict[str, Any]] = []
+            recipient_pubkey = bytes.fromhex(task.recipient_pubkey)
+            for url in task.urls:
+                try:
+                    page_content = _fetch_url(url)
+                    finding = worker.encrypt_payload(page_content, recipient_pubkey)
+                    tx = TransactionHeader.create(
+                        PAYLOAD_COMMIT,
+                        identity,
+                        finding.payload_hash,
+                        finding.merkle_root,
+                    )
+                    chain.submit(tx)
+                    store.save(finding, metadata={"url": url, "fetched_at": time.time()})
+                    results.append({
+                        "url": url,
+                        "payload_hash": finding.payload_hash.hex(),
+                        "merkle_root": finding.merkle_root.hex(),
+                    })
+                except Exception as exc:
+                    failures.append({"url": url, "error": str(exc)})
+            task_queue.complete(task_id, results, failures)
             print(
-                f"[task] result received task={task_id} pubkey={pubkey[:16]} results={len(results)} failures={len(failures)}",
+                f"[task] completed task={task_id} results={len(results)} failures={len(failures)}",
                 flush=True,
             )
-            self._send(200, {"status": "accepted", "task_id": task_id})
+            self._send(200, {
+                "status": "completed",
+                "task_id": task_id,
+                "results": results,
+                "failures": failures,
+            })
+            return
+
+        if path == "/v1/tasks/create":
+            payload = self._read_json()
+            task_type = payload.get("type", "crawl")
+            urls = payload.get("urls", [])
+            recipient_pubkey_hex = payload.get("recipient_pubkey", "")
+            if not urls:
+                self._send(400, {"error": "urls_required"})
+                return
+            if not recipient_pubkey_hex:
+                self._send(400, {"error": "recipient_pubkey_required"})
+                return
+            task = task_queue.create(task_type, urls, recipient_pubkey_hex)
+            self._send(201, task.to_dict())
             return
 
         self._send(404, {"error": "not_found"})

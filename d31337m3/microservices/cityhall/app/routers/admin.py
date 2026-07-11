@@ -1,5 +1,6 @@
 import math
 import uuid as _uuid
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select, func, or_
@@ -7,10 +8,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth import get_current_user, hash_password, require_admin
 from app.database import get_session
-from app.models import User
+from app.models import NodeEnrollToken, User
 from app.schemas import (
     AdminCreateUserRequest,
     AdminUserUpdate,
+    NodeTokenCreateRequest,
+    NodeTokenUseRequest,
     PaginatedUsers,
     SuspendRequest,
     UserAdmin,
@@ -259,6 +262,121 @@ async def create_invitation_token(
     token = str(_uuid.uuid4())
     _invitation_tokens[token] = {"created_by": "admin"}
     return {"token": token}
+
+
+# ---------------------------------------------------------------------------
+# Node enrollment tokens (DB-backed)
+# ---------------------------------------------------------------------------
+
+@router.post("/node-tokens", status_code=201)
+async def create_node_token(
+    body: NodeTokenCreateRequest = NodeTokenCreateRequest(),
+    _: User = Depends(require_admin),
+    session: AsyncSession = Depends(get_session),
+):
+    token_str = str(_uuid.uuid4())
+    nt = NodeEnrollToken(
+        token=token_str,
+        note=body.note,
+        expires_at=body.expires_at,
+    )
+    session.add(nt)
+    await session.flush()
+    return {"token": nt.token, "created_at": str(nt.created_at), "note": nt.note}
+
+
+@router.get("/node-tokens")
+async def list_node_tokens(
+    _: User = Depends(require_admin),
+    session: AsyncSession = Depends(get_session),
+):
+    result = await session.execute(
+        select(NodeEnrollToken).order_by(NodeEnrollToken.created_at.desc())
+    )
+    tokens = result.scalars().all()
+    items = [
+        {
+            "id": str(t.id),
+            "token": t.token,
+            "note": t.note,
+            "used_by_user_id": str(t.used_by_user_id) if t.used_by_user_id else None,
+            "is_revoked": t.is_revoked,
+            "created_at": str(t.created_at),
+            "expires_at": str(t.expires_at) if t.expires_at else None,
+        }
+        for t in tokens
+    ]
+    return {"tokens": items, "count": len(items)}
+
+
+@router.post("/node-tokens/{token_id}/revoke")
+async def revoke_node_token(
+    token_id: str,
+    _: User = Depends(require_admin),
+    session: AsyncSession = Depends(get_session),
+):
+    from uuid import UUID
+
+    try:
+        tid = UUID(token_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid token ID")
+
+    result = await session.execute(
+        select(NodeEnrollToken).where(NodeEnrollToken.id == tid)
+    )
+    nt = result.scalar_one_or_none()
+    if not nt:
+        raise HTTPException(status_code=404, detail="Token not found")
+
+    nt.is_revoked = True
+    await session.flush()
+    return {"status": "revoked"}
+
+
+@router.post("/node-tokens/use")
+async def use_node_token(
+    body: NodeTokenUseRequest,
+    session: AsyncSession = Depends(get_session),
+):
+    result = await session.execute(
+        select(NodeEnrollToken).where(NodeEnrollToken.token == body.token)
+    )
+    nt = result.scalar_one_or_none()
+    if not nt:
+        raise HTTPException(status_code=404, detail="Token not found")
+
+    if nt.is_revoked:
+        raise HTTPException(status_code=400, detail="Token has been revoked")
+    if nt.used_by_user_id is not None:
+        raise HTTPException(status_code=400, detail="Token has already been used")
+    if nt.expires_at is not None and datetime.now(timezone.utc) > nt.expires_at:
+        raise HTTPException(status_code=400, detail="Token has expired")
+
+    existing = await session.execute(select(User).where(User.username == body.username))
+    if existing.scalar_one_or_none():
+        raise HTTPException(status_code=409, detail="Username already taken")
+    existing = await session.execute(select(User).where(User.email == body.email))
+    if existing.scalar_one_or_none():
+        raise HTTPException(status_code=409, detail="Email already registered")
+
+    user = User(
+        username=body.username,
+        email=body.email,
+        password_hash=hash_password(body.password),
+        first_name=body.first_name,
+        last_name=body.last_name,
+        dob=body.dob,
+        is_nodeop=True,
+        is_user=True,
+    )
+    session.add(user)
+    await session.flush()
+
+    nt.used_by_user_id = user.id
+    await session.flush()
+
+    return {"status": "enrolled", "user_id": str(user.id), "username": user.username}
 
 
 @router.post("/users", status_code=201)

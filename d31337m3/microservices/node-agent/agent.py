@@ -341,13 +341,41 @@ def task_loop(state: NodeState, interval: int = 10) -> None:
             task = state.poll_tasks()
             if task:
                 task_id = task.get("id", "unknown")
-                log.info("Received task: %s (type=%s)", task_id, task.get("type"))
-                # For beta, we just acknowledge the task
-                # Full task execution will be added when crawl worker is implemented
-                state.submit_task_result(task_id, [], [])
+                task_type = task.get("type", "unknown")
+                urls = task.get("urls", [])
+                log.info("Received task: %s (type=%s, urls=%d)", task_id, task_type, len(urls))
+                if task_type == "crawl" and urls:
+                    results, failures = _execute_crawl(urls)
+                    state.submit_task_result(task_id, results, failures)
+                    log.info("Task %s complete: %d results, %d failures", task_id, len(results), len(failures))
+                else:
+                    state.submit_task_result(task_id, [], [])
+                    log.info("Task %s acknowledged (type=%s)", task_id, task_type)
         except Exception as exc:
             log.error("Task poll error: %s", exc)
         time.sleep(interval)
+
+
+def _fetch_url(url: str, timeout: int = 30) -> bytes:
+    req = urllib.request.Request(url, headers={"User-Agent": "d31337m3-node-agent/0.1"})
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+        return resp.read()
+
+
+def _execute_crawl(urls: list[str]) -> tuple[list[dict], list[dict]]:
+    results: list[dict] = []
+    failures: list[dict] = []
+    for url in urls:
+        try:
+            content = _fetch_url(url)
+            results.append({
+                "url": url,
+                "content_length": len(content),
+                "content_hash": sha256_bytes(content).hex(),
+            })
+        except Exception as exc:
+            failures.append({"url": url, "error": str(exc)})
+    return results, failures
 
 
 # ---------------------------------------------------------------------------

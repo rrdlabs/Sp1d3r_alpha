@@ -169,6 +169,25 @@ class AdminUserUpdate(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# Node enrollment tokens
+# ---------------------------------------------------------------------------
+
+class NodeTokenCreateRequest(BaseModel):
+    note: str | None = None
+    expires_at: datetime | None = None
+
+
+class NodeTokenUseRequest(BaseModel):
+    token: str
+    username: str = Field(..., min_length=3, max_length=100, pattern=r"^[a-zA-Z0-9_]+$")
+    email: EmailStr
+    password: str = Field(..., min_length=8, max_length=128)
+    first_name: str = Field(..., min_length=1, max_length=100)
+    last_name: str = Field(..., min_length=1, max_length=100)
+    dob: date
+
+
+# ---------------------------------------------------------------------------
 # Pagination / list
 # ---------------------------------------------------------------------------
 
