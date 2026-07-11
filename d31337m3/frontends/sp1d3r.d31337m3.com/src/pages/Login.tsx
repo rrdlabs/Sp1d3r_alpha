@@ -10,24 +10,29 @@ import {
   Link,
   Paper,
 } from "@mui/material"
-import { useAuth } from "../context/AuthContext"
+import { useAuth, getDeviceId } from "../context/AuthContext"
+import OTPVerification from "./OTPVerification"
+import type { OTPPending } from "../context/AuthContext"
 
 export default function Login() {
-  const { login } = useAuth()
+  const { login, completeAuth } = useAuth()
   const navigate = useNavigate()
   const [username, setUsername] = useState("")
   const [password, setPassword] = useState("")
   const [error, setError] = useState("")
   const [loading, setLoading] = useState(false)
+  const [otpPending, setOtpPending] = useState<OTPPending | null>(null)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError("")
     setLoading(true)
     try {
-      const ok = await login(username, password)
-      if (ok) {
+      const result = await login(username, password)
+      if (result.ok) {
         navigate("/dashboard")
+      } else if ("otp" in result) {
+        setOtpPending(result.otp)
       } else {
         setError("Invalid credentials")
       }
@@ -36,6 +41,21 @@ export default function Login() {
     } finally {
       setLoading(false)
     }
+  }
+
+  if (otpPending) {
+    return (
+      <OTPVerification
+        userId={otpPending.user_id}
+        purpose={otpPending.purpose}
+        emailHint={otpPending.email_hint}
+        deviceId={getDeviceId()}
+        onSuccess={(data) => {
+          completeAuth(data)
+          navigate("/dashboard")
+        }}
+      />
+    )
   }
 
   return (

@@ -21,12 +21,16 @@ export async function apiRequest<T = unknown>(
   method: string,
   path: string,
   body?: object,
+  extraHeaders?: Record<string, string>,
 ): Promise<{ ok: boolean; status: number; data: T }> {
   const base = API_BASES[service]
   const headers: Record<string, string> = { "Content-Type": "application/json" }
   const token = getToken()
   if (token) {
     headers["Authorization"] = `Bearer ${token}`
+  }
+  if (extraHeaders) {
+    Object.assign(headers, extraHeaders)
   }
   const res = await fetch(`${base.replace(/\/+$/, "")}${path}`, {
     method,

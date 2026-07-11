@@ -2,6 +2,17 @@ import { createContext, useContext, useState, useCallback, useEffect } from "rea
 import type { ReactNode } from "react"
 import { apiRequest } from "../api/client"
 
+function getDeviceId(): string {
+  let id = localStorage.getItem("sp1d3r_device_id")
+  if (!id) {
+    id = crypto.randomUUID()
+    localStorage.setItem("sp1d3r_device_id", id)
+  }
+  return id
+}
+
+export { getDeviceId }
+
 interface User {
   id: string
   username: string
@@ -25,9 +36,20 @@ interface AuthState {
   isAdmin: boolean
 }
 
+export interface OTPPending {
+  requires_otp: true
+  user_id: string
+  username: string
+  purpose: string
+  email_hint: string
+}
+
+type AuthResult = { ok: true } | { ok: false } | { ok: false; otp: OTPPending }
+
 interface AuthContextType extends AuthState {
-  login: (username: string, password: string) => Promise<boolean>
-  register: (data: Record<string, unknown>) => Promise<boolean>
+  login: (username: string, password: string) => Promise<AuthResult>
+  register: (data: Record<string, unknown>) => Promise<AuthResult>
+  completeAuth: (data: { access_token: string; user_id: string; username: string; is_admin: boolean }) => void
   logout: () => void
   fetchProfile: () => Promise<void>
 }
@@ -55,14 +77,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (state.token) fetchProfile()
   }, [state.token, fetchProfile])
 
-  const login = useCallback(async (username: string, password: string) => {
-    const res = await apiRequest<{ access_token: string; user_id: string; username: string; is_admin: boolean }>(
+  const login = useCallback(async (username: string, password: string): Promise<AuthResult> => {
+    const deviceId = getDeviceId()
+    const res = await apiRequest<{ access_token: string; user_id: string; username: string; is_admin: boolean } & { requires_otp?: boolean; purpose?: string; email_hint?: string }>(
       "cityhall",
       "POST",
       "/auth/login",
       { username, password },
+      { "X-Device-ID": deviceId },
     )
     if (res.ok) {
+      if (res.data.requires_otp) {
+        return { ok: false, otp: { requires_otp: true, user_id: res.data.user_id, username: res.data.username, purpose: res.data.purpose!, email_hint: res.data.email_hint! } }
+      }
       const { access_token, user_id, username: uname, is_admin } = res.data
       localStorage.setItem("sp1d3r_token", access_token)
       localStorage.setItem("sp1d3r_user_id", user_id)
@@ -75,19 +102,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         username: uname,
         isAdmin: is_admin,
       }))
-      return true
+      return { ok: true }
     }
-    return false
+    return { ok: false }
   }, [])
 
-  const register = useCallback(async (data: Record<string, unknown>) => {
-    const res = await apiRequest<{ access_token: string; user_id: string; username: string; is_admin: boolean }>(
+  const register = useCallback(async (data: Record<string, unknown>): Promise<AuthResult> => {
+    const res = await apiRequest<{ access_token: string; user_id: string; username: string; is_admin: boolean } & { requires_otp?: boolean; purpose?: string; email_hint?: string }>(
       "cityhall",
       "POST",
       "/auth/register",
       data,
     )
     if (res.ok) {
+      if (res.data.requires_otp) {
+        return { ok: false, otp: { requires_otp: true, user_id: res.data.user_id, username: res.data.username, purpose: res.data.purpose!, email_hint: res.data.email_hint! } }
+      }
       const { access_token, user_id, username: uname, is_admin } = res.data
       localStorage.setItem("sp1d3r_token", access_token)
       localStorage.setItem("sp1d3r_user_id", user_id)
@@ -100,9 +130,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         username: uname,
         isAdmin: is_admin,
       }))
-      return true
+      return { ok: true }
     }
-    return false
+    return { ok: false }
+  }, [])
+
+  const completeAuth = useCallback((data: { access_token: string; user_id: string; username: string; is_admin: boolean }) => {
+    localStorage.setItem("sp1d3r_token", data.access_token)
+    localStorage.setItem("sp1d3r_user_id", data.user_id)
+    localStorage.setItem("sp1d3r_username", data.username)
+    localStorage.setItem("sp1d3r_is_admin", String(data.is_admin))
+    setState((prev) => ({
+      ...prev,
+      token: data.access_token,
+      userId: data.user_id,
+      username: data.username,
+      isAdmin: data.is_admin,
+    }))
   }, [])
 
   const logout = useCallback(() => {
@@ -114,7 +158,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   return (
-    <AuthContext.Provider value={{ ...state, login, register, logout, fetchProfile }}>
+    <AuthContext.Provider value={{ ...state, login, register, completeAuth, logout, fetchProfile }}>
       {children}
     </AuthContext.Provider>
   )

@@ -10,6 +10,7 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
+from datetime import datetime, timezone
 from email.message import EmailMessage
 from pathlib import Path
 from typing import Any
@@ -41,7 +42,11 @@ def _connect() -> sqlite3.Connection:
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     conn.execute("CREATE TABLE IF NOT EXISTS messages (id INTEGER PRIMARY KEY AUTOINCREMENT, channel TEXT NOT NULL, sender TEXT NOT NULL, recipient TEXT NOT NULL, body TEXT NOT NULL, metadata TEXT NOT NULL, archived INTEGER DEFAULT 0)")
-    conn.execute("CREATE TABLE IF NOT EXISTS mailouts (id INTEGER PRIMARY KEY AUTOINCREMENT, to_address TEXT NOT NULL, subject TEXT NOT NULL, body TEXT NOT NULL, status TEXT NOT NULL, provider TEXT NOT NULL)")
+    conn.execute("CREATE TABLE IF NOT EXISTS mailouts (id INTEGER PRIMARY KEY AUTOINCREMENT, to_address TEXT NOT NULL, subject TEXT NOT NULL, body TEXT NOT NULL, status TEXT NOT NULL, provider TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT (datetime('now')))")
+    try:
+        conn.execute("ALTER TABLE mailouts ADD COLUMN created_at TEXT NOT NULL DEFAULT (datetime('now'))")
+    except sqlite3.OperationalError:
+        pass
     return conn
 
 
@@ -181,9 +186,15 @@ def _send_smtp_mail(payload: dict[str, Any]) -> str:
 
 
 def _retry_queued_emails() -> None:
+    last_cleanup = time.time()
     while True:
         time.sleep(60)
         try:
+            if time.time() - last_cleanup >= 7200:
+                with _connect() as conn:
+                    conn.execute("DELETE FROM mailouts")
+                log.info("Cleared email log (older than 2 hours)")
+                last_cleanup = time.time()
             with _connect() as conn:
                 rows = conn.execute(
                     "SELECT id, to_address, subject, body FROM mailouts WHERE status = 'queued'"

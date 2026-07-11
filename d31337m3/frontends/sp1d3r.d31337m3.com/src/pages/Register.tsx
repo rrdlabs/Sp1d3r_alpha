@@ -16,7 +16,9 @@ import {
   FormControlLabel,
   FormGroup,
 } from "@mui/material"
-import { useAuth } from "../context/AuthContext"
+import { useAuth, getDeviceId } from "../context/AuthContext"
+import OTPVerification from "./OTPVerification"
+import type { OTPPending } from "../context/AuthContext"
 
 const steps = ["Account", "Profile", "Enrollment"]
 
@@ -26,6 +28,7 @@ export default function Register() {
   const [active, setActive] = useState(0)
   const [error, setError] = useState("")
   const [loading, setLoading] = useState(false)
+  const [otpPending, setOtpPending] = useState<OTPPending | null>(null)
 
   const [form, setForm] = useState({
     username: "",
@@ -57,10 +60,33 @@ export default function Register() {
   const handleSubmit = async () => {
     setError("")
     setLoading(true)
-    const ok = await register(form)
+    const result = await register(form)
     setLoading(false)
-    if (ok) navigate("/dashboard")
-    else setError("Registration failed. Username or email may already be taken.")
+    if (result.ok) {
+      navigate("/dashboard")
+    } else if ("otp" in result) {
+      setOtpPending(result.otp)
+    } else {
+      setError("Registration failed. Username or email may already be taken.")
+    }
+  }
+
+  if (otpPending) {
+    return (
+      <OTPVerification
+        userId={otpPending.user_id}
+        purpose={otpPending.purpose}
+        emailHint={otpPending.email_hint}
+        deviceId={getDeviceId()}
+        onSuccess={(data) => {
+          localStorage.setItem("sp1d3r_token", data.access_token)
+          localStorage.setItem("sp1d3r_user_id", data.user_id)
+          localStorage.setItem("sp1d3r_username", data.username)
+          localStorage.setItem("sp1d3r_is_admin", String(data.is_admin))
+          navigate("/dashboard")
+        }}
+      />
+    )
   }
 
   return (

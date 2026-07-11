@@ -48,6 +48,14 @@ class TokenResponse(BaseModel):
     is_admin: bool = False
 
 
+class OTPRequiredResponse(BaseModel):
+    requires_otp: bool = True
+    user_id: str
+    username: str
+    purpose: str
+    email_hint: str
+
+
 class ChallengeResponse(BaseModel):
     challenge: str
 
@@ -271,3 +279,14 @@ class BrokerCsvRow(BaseModel):
 
 class BrokerCsvUpload(BaseModel):
     brokers: list[BrokerCsvRow]
+
+
+# ---------------------------------------------------------------------------
+# OTP
+# ---------------------------------------------------------------------------
+
+class OTPVerifyRequest(BaseModel):
+    user_id: str
+    code: str = Field(..., min_length=6, max_length=6)
+    purpose: str
+    device_id: str | None = None
