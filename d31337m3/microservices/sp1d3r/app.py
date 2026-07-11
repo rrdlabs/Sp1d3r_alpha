@@ -29,6 +29,7 @@ from d31337m3_chain.transaction import TRANSACTION_SIZE
 from d31337m3_crawler import CrawlerWorker, FindingStore, WorkerConfig
 
 from task_queue import TaskQueue
+from search_store import SearchStore
 
 
 class CORSMixin:
@@ -83,6 +84,7 @@ if identity.public_key not in chain.authenticated_nodes:
 
 gossip_worker = GossipWorker(identity, peer_store, interval=2.0)
 task_queue = TaskQueue(DATA_DIR)
+search_store = SearchStore(DATA_DIR)
 
 
 def _sync_from_seed(seed_url: str) -> bool:
@@ -239,6 +241,53 @@ class Sp1d3rHandler(CORSMixin, BaseHTTPRequestHandler):
                 self._send(200, task.to_dict())
             return
 
+        if path.startswith("/v1/search/") and path.endswith("/results"):
+            search_id = path.split("/")[3]
+            search = search_store.get(search_id)
+            if search is None:
+                self._send(404, {"error": "search_not_found"})
+                return
+            requester_pubkey = self.headers.get("X-Requester-Pubkey", "")
+            if requester_pubkey and requester_pubkey != search.recipient_pubkey:
+                self._send(403, {"error": "not_authorized"})
+                return
+            search_store.check_completion(search_id, task_queue)
+            self._send(200, {
+                "search_id": search.id,
+                "status": search.status,
+                "results": search.results,
+                "failures": search.failures,
+                "created_at": search.created_at,
+                "completed_at": search.completed_at,
+            })
+            return
+
+        if path.startswith("/v1/search/") and not path.endswith("/results"):
+            search_id = path.split("/")[3]
+            search = search_store.get(search_id)
+            if search is None:
+                self._send(404, {"error": "search_not_found"})
+                return
+            requester_pubkey = self.headers.get("X-Requester-Pubkey", "")
+            if requester_pubkey and requester_pubkey != search.recipient_pubkey:
+                self._send(403, {"error": "not_authorized"})
+                return
+            search_store.check_completion(search_id, task_queue)
+            self._send(200, search.to_dict())
+            return
+
+        if path == "/v1/searches":
+            requester_pubkey = self.headers.get("X-Requester-Pubkey", "")
+            if not requester_pubkey:
+                self._send(400, {"error": "X-Requester-Pubkey header required"})
+                return
+            searches = search_store.list_by_pubkey(requester_pubkey)
+            self._send(200, {
+                "searches": [s.to_dict() for s in searches],
+                "total": len(searches),
+            })
+            return
+
         self._send(404, {"error": "not_found"})
 
     def do_POST(self) -> None:  # noqa: N802
@@ -340,14 +389,28 @@ class Sp1d3rHandler(CORSMixin, BaseHTTPRequestHandler):
                     )
                     chain.submit(tx)
                     store.save(finding, metadata={"url": url, "fetched_at": time.time()})
-                    results.append({
+                    result_entry = {
                         "url": url,
                         "payload_hash": finding.payload_hash.hex(),
                         "merkle_root": finding.merkle_root.hex(),
-                    })
+                        "ephemeral_public_key": finding.ephemeral_public_key.hex(),
+                        "nonce": finding.nonce.hex(),
+                        "ciphertext": finding.ciphertext.hex(),
+                    }
+                    results.append(result_entry)
+                    for search in search_store.list_by_pubkey(task.recipient_pubkey):
+                        if task_id in search.task_ids:
+                            search_store.add_result(search.id, result_entry)
                 except Exception as exc:
-                    failures.append({"url": url, "error": str(exc)})
+                    failure_entry = {"url": url, "error": str(exc)}
+                    failures.append(failure_entry)
+                    for search in search_store.list_by_pubkey(task.recipient_pubkey):
+                        if task_id in search.task_ids:
+                            search_store.add_failure(search.id, failure_entry)
             task_queue.complete(task_id, results, failures)
+            for search in search_store.list_by_pubkey(task.recipient_pubkey):
+                if task_id in search.task_ids:
+                    search_store.check_completion(search.id, task_queue)
             print(
                 f"[task] completed task={task_id} results={len(results)} failures={len(failures)}",
                 flush=True,
@@ -373,6 +436,28 @@ class Sp1d3rHandler(CORSMixin, BaseHTTPRequestHandler):
                 return
             task = task_queue.create(task_type, urls, recipient_pubkey_hex)
             self._send(201, task.to_dict())
+            return
+
+        if path == "/v1/search":
+            payload = self._read_json()
+            query = payload.get("query", "")
+            urls = payload.get("urls", [])
+            recipient_pubkey_hex = payload.get("recipient_pubkey", "")
+            if not urls:
+                self._send(400, {"error": "urls_required"})
+                return
+            if not recipient_pubkey_hex:
+                self._send(400, {"error": "recipient_pubkey_required"})
+                return
+            search = search_store.create(query, urls, recipient_pubkey_hex)
+            for url in urls:
+                task = task_queue.create("crawl", [url], recipient_pubkey_hex)
+                search_store.add_task(search.id, task.id)
+            print(
+                f"[search] created search={search.id} urls={len(urls)} tasks={len(search.task_ids)}",
+                flush=True,
+            )
+            self._send(201, search.to_dict())
             return
 
         self._send(404, {"error": "not_found"})

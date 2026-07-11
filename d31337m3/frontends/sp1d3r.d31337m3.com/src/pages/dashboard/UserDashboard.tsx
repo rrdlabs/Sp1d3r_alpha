@@ -6,11 +6,8 @@ import {
   Container,
   Grid,
   Paper,
-  TextField,
   Typography,
-  Alert,
   Chip,
-  LinearProgress,
   Table,
   TableBody,
   TableCell,
@@ -27,12 +24,7 @@ import ComputerIcon from "@mui/icons-material/Computer"
 import DownloadIcon from "@mui/icons-material/Download"
 import { apiRequest } from "../../api/client"
 import { useAuth } from "../../context/AuthContext"
-
-interface CrawlResult {
-  url: string
-  payload_hash: string
-  merkle_root: string
-}
+import SearchPanel from "../../components/SearchPanel"
 
 interface ChainState {
   blocks: number
@@ -61,11 +53,6 @@ interface LiveNode {
 
 export default function UserDashboard() {
   const { username } = useAuth()
-  const [urls, setUrls] = useState("")
-  const [pubKey, setPubKey] = useState("")
-  const [crawling, setCrawling] = useState(false)
-  const [crawlResults, setCrawlResults] = useState<CrawlResult[] | null>(null)
-  const [crawlError, setCrawlError] = useState("")
   const [chainState, setChainState] = useState<ChainState | null>(null)
   const [peers, setPeers] = useState<Peer[]>([])
   const [liveNodes, setLiveNodes] = useState<LiveNode[]>([])
@@ -86,29 +73,6 @@ export default function UserDashboard() {
     }
     loadChain()
   }, [])
-
-  const handleCrawl = async () => {
-    const urlList = urls.split("\n").map((u) => u.trim()).filter(Boolean)
-    if (!urlList.length) return
-    setCrawling(true)
-    setCrawlError("")
-    setCrawlResults(null)
-    const res = await apiRequest<{ results: CrawlResult[]; failures: { url: string; error: string }[] }>(
-      "sp1d3r",
-      "POST",
-      "/v1/crawl",
-      { urls: urlList, recipient_public_key: pubKey },
-    )
-    setCrawling(false)
-    if (res.ok) {
-      setCrawlResults(res.data.results || [])
-      if (res.data.failures?.length) {
-        setCrawlError(`${res.data.failures.length} URL(s) failed`)
-      }
-    } else {
-      setCrawlError("Crawl request failed")
-    }
-  }
 
   const onlineNodes = liveNodes.filter((n) => Date.now() / 1000 - n.last_seen < 120).length
 
@@ -281,60 +245,7 @@ export default function UserDashboard() {
         </Paper>
       )}
 
-      <Paper sx={{ p: 3, mt: 3 }} variant="outlined">
-        <Typography variant="h5" gutterBottom sx={{ fontFamily: "monospace" }}>
-          Run Crawl
-        </Typography>
-        <TextField
-          fullWidth
-          multiline
-          rows={3}
-          label="URLs (one per line)"
-          value={urls}
-          onChange={(e) => setUrls(e.target.value)}
-          sx={{ mb: 2 }}
-          placeholder={"https://example.com\nhttps://example.org"}
-        />
-        <TextField
-          fullWidth
-          label="Recipient Public Key (hex)"
-          value={pubKey}
-          onChange={(e) => setPubKey(e.target.value)}
-          sx={{ mb: 2 }}
-          placeholder="ed25519 public key in hex"
-        />
-        <Button variant="contained" onClick={handleCrawl} disabled={crawling || !urls.trim()}>
-          {crawling ? "Crawling..." : "Start Crawl"}
-        </Button>
-        {crawling && <LinearProgress sx={{ mt: 2 }} />}
-        {crawlError && <Alert severity="warning" sx={{ mt: 2 }}>{crawlError}</Alert>}
-        {crawlResults && crawlResults.length > 0 && (
-          <TableContainer sx={{ mt: 2 }}>
-            <Table size="small">
-              <TableHead>
-                <TableRow>
-                  <TableCell>URL</TableCell>
-                  <TableCell>Payload Hash</TableCell>
-                  <TableCell>Merkle Root</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {crawlResults.map((r) => (
-                  <TableRow key={r.url}>
-                    <TableCell>{r.url}</TableCell>
-                    <TableCell sx={{ fontFamily: "monospace", fontSize: "0.75rem" }}>
-                      {r.payload_hash?.slice(0, 16)}...
-                    </TableCell>
-                    <TableCell sx={{ fontFamily: "monospace", fontSize: "0.75rem" }}>
-                      {r.merkle_root?.slice(0, 16)}...
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </TableContainer>
-        )}
-      </Paper>
+      <SearchPanel />
     </Container>
   )
 }
