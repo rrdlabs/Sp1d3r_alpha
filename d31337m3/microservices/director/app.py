@@ -147,6 +147,14 @@ class DirectorHandler(CORSMixin, BaseHTTPRequestHandler):
             blacklist = store.get("blacklist", [])
             self._send(200, {"blacklist": blacklist})
             return
+        if path == "/nodes":
+            store = _load_store()
+            nodes = []
+            for name, svc in store["services"].items():
+                if name.startswith("node-agent") or svc.get("kind") == "node":
+                    nodes.append(svc)
+            self._send(200, {"nodes": nodes})
+            return
         if path.startswith("/services/") and path.endswith("/restart"):
             name = path.split("/", 2)[2].split("/", 1)[0]
             container = SERVICE_CONTAINER_MAP.get(name)
@@ -236,15 +244,16 @@ class DirectorHandler(CORSMixin, BaseHTTPRequestHandler):
             payload = self._read_json()
             store = _load_store()
             service = store["services"].setdefault(name, {"name": name, "status": "running", "healthy": True, "failures": 0, "restart_count": 0, "last_seen": int(time.time())})
-            service["healthy"] = bool(payload.get("healthy", True))
-            service["status"] = payload.get("status", "running" if service["healthy"] else "degraded")
+            service["healthy"] = True
+            service["status"] = payload.get("status", "running")
             service["last_seen"] = int(time.time())
-            if not service["healthy"]:
-                service["failures"] = int(service.get("failures", 0)) + 1
-            else:
-                service["failures"] = 0
+            service["failures"] = 0
+            # Store node-specific fields (pubkey, height, version)
+            for key in ("pubkey", "height", "version"):
+                if key in payload:
+                    service[key] = payload[key]
             _save_store(store)
-            self._send(200, {"service": service})
+            self._send(200, {"status": "ok", "service": service})
             return
         if path.startswith("/services/") and path.endswith("/health"):
             name = path.split("/", 2)[2].split("/", 1)[0]

@@ -199,11 +199,20 @@ class Sp1d3rHandler(CORSMixin, BaseHTTPRequestHandler):
             return
 
         if path == "/v1/chain/sync":
+            tip_hash = chain.blocks[-1].hex() if chain.blocks else ""
             self._send(200, {
+                "height": chain.height,
+                "tip_hash": tip_hash,
                 "local_height": chain.height,
                 "peers_known": len(peer_store.list()),
                 "gossip_enabled": GOSSIP_ENABLED,
             })
+            return
+
+        if path == "/v1/tasks/pending":
+            # For beta, no tasks to distribute yet
+            # When crawl tasks are ready, this will check a task queue
+            self._send(200, {"status": "no_tasks"})
             return
 
         self._send(404, {"error": "not_found"})
@@ -283,6 +292,19 @@ class Sp1d3rHandler(CORSMixin, BaseHTTPRequestHandler):
                 self._send(400, {"error": event.message})
                 return
             self._send(200, {"status": "gossip_accepted", "code": event.code})
+            return
+
+        if path == "/v1/tasks/result":
+            payload = self._read_json()
+            task_id = payload.get("task_id", "")
+            pubkey = payload.get("pubkey", "")
+            results = payload.get("results", [])
+            failures = payload.get("failures", [])
+            print(
+                f"[task] result received task={task_id} pubkey={pubkey[:16]} results={len(results)} failures={len(failures)}",
+                flush=True,
+            )
+            self._send(200, {"status": "accepted", "task_id": task_id})
             return
 
         self._send(404, {"error": "not_found"})
