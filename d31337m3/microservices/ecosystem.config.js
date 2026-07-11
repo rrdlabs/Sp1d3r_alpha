@@ -1,0 +1,110 @@
+module.exports = {
+  apps: [
+    {
+      name: "cityhall",
+      cwd: "/home/dranger/Sp1d3r_alpha/d31337m3/microservices/cityhall",
+      script: "python3",
+      args: "-m uvicorn app.main:app --host 0.0.0.0 --port 8000",
+      env: {
+        DATABASE_URL: "postgresql+asyncpg://d31337m3:d31337m3@localhost:5432/d31337m3",
+      },
+      max_memory_restart: "300M",
+    },
+    {
+      name: "historian",
+      cwd: "/home/dranger/Sp1d3r_alpha/d31337m3/microservices/historian",
+      script: "python3",
+      args: "app.py",
+      env: {
+        HISTORIAN_PORT: "8100",
+        HISTORIAN_DATA_DIR: "/var/lib/sp1d3r/historian",
+      },
+      max_memory_restart: "200M",
+    },
+    {
+      name: "lawyer",
+      cwd: "/home/dranger/Sp1d3r_alpha/d31337m3/microservices/lawyer",
+      script: "python3",
+      args: "app.py",
+      env: {
+        LAWYER_PORT: "8200",
+        HISTORIAN_URL: "http://127.0.0.1:8100",
+      },
+      max_memory_restart: "200M",
+    },
+    {
+      name: "inboxer",
+      cwd: "/home/dranger/Sp1d3r_alpha/d31337m3/microservices/inboxer",
+      script: "python3",
+      args: "app.py",
+      env: {
+        INBOXER_PORT: "8300",
+        INBOXER_DATA_DIR: "/var/lib/sp1d3r/inboxer",
+      },
+      max_memory_restart: "200M",
+    },
+    {
+      name: "director",
+      cwd: "/home/dranger/Sp1d3r_alpha/d31337m3/microservices/director",
+      script: "python3",
+      args: "app.py",
+      env: {
+        DIRECTOR_PORT: "8400",
+        DIRECTOR_DATA_DIR: "/var/lib/sp1d3r/director",
+      },
+      max_memory_restart: "200M",
+    },
+    {
+      name: "picaso",
+      cwd: "/home/dranger/Sp1d3r_alpha/d31337m3/microservices/picaso",
+      script: "python3",
+      args: "app.py",
+      env: {
+        PICASO_PORT: "8500",
+        PICASO_DATA_DIR: "/var/lib/sp1d3r/picaso",
+        DIRECTOR_URL: "http://127.0.0.1:8400",
+      },
+      max_memory_restart: "200M",
+    },
+    {
+      name: "spiderwire",
+      cwd: "/home/dranger/Sp1d3r_alpha/d31337m3/microservices/spiderwire",
+      script: "python3",
+      args: "app.py",
+      env: {
+        SPIDERWIRE_PORT: "8600",
+        DIRECTOR_URL: "http://127.0.0.1:8400",
+      },
+      max_memory_restart: "200M",
+    },
+    {
+      name: "banker",
+      cwd: "/home/dranger/Sp1d3r_alpha/d31337m3/microservices/banker",
+      script: "python3",
+      args: "-m app",
+      env: {
+        BANKER_PORT: "8700",
+        BANKER_DATA_DIR: "/var/lib/sp1d3r/banker",
+        STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY || "",
+        STRIPE_WEBHOOK_SECRET: process.env.STRIPE_WEBHOOK_SECRET || "",
+        FRONTEND_URL: "https://d31337m3.com",
+        CITYHALL_URL: "http://127.0.0.1:8000",
+        INBOXER_URL: "http://127.0.0.1:8300",
+      },
+      max_memory_restart: "300M",
+    },
+    {
+      name: "sp1d3r",
+      cwd: "/home/dranger/Sp1d3r_alpha/d31337m3/microservices/sp1d3r",
+      script: "python3",
+      args: "app.py",
+      env: {
+        SP1D3R_PORT: "9000",
+        SP1D3R_HOST: "0.0.0.0",
+        DIRECTOR_URL: "http://127.0.0.1:8400",
+        PYTHONPATH: "/home/dranger/Sp1d3r_alpha/d31337m3/microservices/sp1d3r/src",
+      },
+      max_memory_restart: "300M",
+    },
+  ],
+};

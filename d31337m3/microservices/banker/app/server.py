@@ -9,7 +9,7 @@ from urllib.parse import urlparse, parse_qs
 import stripe
 import requests
 
-DB_PATH = "/data/banker.sqlite3"
+DB_PATH = os.environ.get("BANKER_DATA_DIR", "/var/lib/sp1d3r/banker") + "/banker.sqlite3"
 STRIPE_SECRET_KEY = os.environ.get("STRIPE_SECRET_KEY", "")
 STRIPE_WEBHOOK_SECRET = os.environ.get("STRIPE_WEBHOOK_SECRET", "")
 FRONTEND_URL = os.environ.get("FRONTEND_URL", "https://d31337m3.com")

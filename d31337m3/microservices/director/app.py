@@ -42,55 +42,30 @@ def _save_store(store: dict[str, Any]) -> None:
 LOGS_DIR = DATA_DIR / "logs"
 LOGS_DIR.mkdir(parents=True, exist_ok=True)
 
-SERVICE_CONTAINER_MAP = {
-    "cityhall": "microservices-cityhall-1",
-    "director": "microservices-director-1",
-    "historian": "microservices-historian-1",
-    "lawyer": "microservices-lawyer-1",
-    "inboxer": "microservices-inboxer-1",
-    "picaso": "microservices-picaso-1",
-    "spiderwire": "microservices-spiderwire-1",
-    "sp1d3r": "microservices-sp1d3r-1",
-}
+PM2_LOGS_DIR = Path(os.path.expanduser("~/.pm2/logs"))
+
+PM2_SERVICES = [
+    "cityhall", "director", "historian", "lawyer",
+    "inboxer", "picaso", "spiderwire", "sp1d3r", "banker",
+]
 
 def _read_service_logs(service_name: str, line_count: int) -> list[str]:
-    container = SERVICE_CONTAINER_MAP.get(service_name)
-    if container:
-        try:
-            req = urllib.request.Request(
-                f"http://localhost/containers/{container}/logs?tail={line_count}&stdout=true&stderr=true",
-            )
-            # Use Docker socket
-            import socket
-            sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-            sock.connect("/var/run/docker.sock")
-            sock.sendall(f"GET /containers/{container}/logs?tail={line_count}&stdout=true&stderr=true HTTP/1.0\r\nHost: localhost\r\n\r\n".encode())
-            data = b""
-            while True:
-                chunk = sock.recv(4096)
-                if not chunk:
-                    break
-                data += chunk
-            sock.close()
-            # Parse HTTP response body (skip headers)
-            body_start = data.find(b"\r\n\r\n")
-            if body_start >= 0:
-                body = data[body_start + 4:]
-            else:
-                body = data
-            # Docker log frames have 8-byte headers per frame
-            lines = []
-            i = 0
-            while i < len(body):
-                if i + 8 > len(body):
-                    break
-                frame_size = int.from_bytes(body[i + 4:i + 8], "big")
-                frame_data = body[i + 8:i + 8 + frame_size]
-                lines.extend(frame_data.decode("utf-8", errors="replace").splitlines())
-                i += 8 + frame_size
-            return lines[-line_count:] if lines else [f"[director] No log output from {service_name}"]
-        except Exception:
-            pass
+    if service_name in PM2_SERVICES:
+        out_log = PM2_LOGS_DIR / f"{service_name}-out.log"
+        err_log = PM2_LOGS_DIR / f"{service_name}-error.log"
+        lines: list[str] = []
+        if err_log.exists():
+            try:
+                lines.extend(err_log.read_text(encoding="utf-8", errors="replace").splitlines())
+            except Exception:
+                pass
+        if out_log.exists():
+            try:
+                lines.extend(out_log.read_text(encoding="utf-8", errors="replace").splitlines())
+            except Exception:
+                pass
+        if lines:
+            return lines[-line_count:]
     log_file = LOGS_DIR / f"{service_name}.log"
     if log_file.exists():
         file_lines = log_file.read_text(encoding="utf-8").splitlines()
