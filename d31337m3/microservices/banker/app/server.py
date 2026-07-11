@@ -18,6 +18,21 @@ INBOXER_URL = os.environ.get("INBOXER_URL", "http://inboxer:8300")
 
 WALLET_ADDRESS = "0x4Ffd3170C4b650b2D7681e402b49e6C341274299"
 
+RPC_URLS = {
+    "polygon": "https://polygon-rpc.com",
+    "base": "https://mainnet.base.org",
+}
+
+USDC_CONTRACTS = {
+    "polygon": "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174",
+    "base": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+}
+
+USDT_CONTRACTS = {
+    "polygon": "0xc2132D05D31c914a87C6611C10748AEb04B58e8F",
+    "base": "0xfde4C96c8593536E31F229EA8f37b2ADa2699bb2",
+}
+
 if STRIPE_SECRET_KEY:
     stripe.api_key = STRIPE_SECRET_KEY
 
@@ -112,6 +127,64 @@ def compute_period_end(tier):
     elif interval == "weekly":
         return now + timedelta(weeks=1)
     return now + timedelta(days=30)
+
+
+def _rpc_call(network, method, params):
+    rpc_url = RPC_URLS.get(network, RPC_URLS["polygon"])
+    payload = {"jsonrpc": "2.0", "id": 1, "method": method, "params": params}
+    try:
+        resp = requests.post(rpc_url, json=payload, timeout=10)
+        data = resp.json()
+        if "result" in data:
+            return data["result"]
+        if "error" in data:
+            print(f"[banker] RPC error: {data['error']}")
+        return None
+    except Exception as e:
+        print(f"[banker] RPC call failed: {e}")
+        return None
+
+
+def verify_crypto_tx(tx_hash, network, expected_recipient, amount_cents):
+    if not tx_hash or not tx_hash.startswith("0x") or len(tx_hash) != 66:
+        return False, "Invalid transaction hash format"
+
+    tx_data = _rpc_call(network, "eth_getTransactionByHash", [tx_hash])
+    if not tx_data:
+        return False, "Transaction not found on chain"
+
+    to_addr = (tx_data.get("to") or "").lower()
+    if to_addr != expected_recipient.lower():
+        return False, f"Recipient mismatch: expected {expected_recipient}, got {tx_data.get('to')}"
+
+    if tx_data.get("blockNumber") is None:
+        return False, "Transaction not yet confirmed (pending)"
+
+    receipt = _rpc_call(network, "eth_getTransactionReceipt", [tx_hash])
+    if not receipt:
+        return False, "Transaction receipt not found"
+    if receipt.get("status") != "0x1":
+        return False, "Transaction reverted on chain"
+
+    logs = receipt.get("logs", [])
+    expected_amount = amount_cents * 10000
+
+    for log_entry in logs:
+        topic0 = log_entry.get("topics", [None])[0] if log_entry.get("topics") else None
+        if topic0 and topic0.lower() == "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef":
+            contract = log_entry.get("address", "").lower()
+            if contract in [c.lower() for c in list(USDC_CONTRACTS.values()) + list(USDT_CONTRACTS.values())]:
+                data = log_entry.get("data", "0x")
+                if data.startswith("0x"):
+                    data = data[2:]
+                if len(data) >= 64:
+                    transfer_amount = int(data[:64], 16)
+                    if transfer_amount >= expected_amount:
+                        return True, "Payment verified"
+                    else:
+                        return False, f"Insufficient amount: sent {transfer_amount / 10000:.2f}, expected {amount_cents / 100:.2f}"
+
+    return False, "No matching ERC20 transfer event found in transaction"
 
 
 def handle_payment_failure(subscription, provider, error_message):
@@ -504,18 +577,38 @@ class BankerHandler(CORSMixin, BaseHTTPRequestHandler):
             elif provider == "crypto":
                 tx_hash = body.get("tx_hash", "")
                 network = body.get("network", "polygon")
+                if not tx_hash:
+                    self._send_json(400, {"error": "tx_hash required for crypto verification"})
+                    return
+
                 conn = get_db()
+                tier = conn.execute("SELECT * FROM subscription_tiers WHERE id = ?", (sub["tier_id"],)).fetchone()
+                tier = dict(tier) if tier else {}
+                amount_cents = tier.get("price_cents", 0)
+
+                verified, message = verify_crypto_tx(tx_hash, network, WALLET_ADDRESS, amount_cents)
+                print(f"[banker] Crypto verify: {tx_hash[:16]}... on {network} -> {message}")
+
                 conn.execute(
                     "UPDATE subscriptions SET crypto_tx_hash = ?, crypto_network = ? WHERE id = ?",
                     (tx_hash, network, sub_id),
                 )
                 conn.commit()
-                conn.close()
-                result = handle_payment_success(sub_id)
-                if result:
-                    self._send_json(200, {"status": "verified", "subscription": result})
+
+                if verified:
+                    conn.close()
+                    result = handle_payment_success(sub_id)
+                    if result:
+                        self._send_json(200, {"status": "verified", "subscription": result, "message": message})
+                    else:
+                        self._send_json(500, {"error": "Failed to update subscription"})
                 else:
-                    self._send_json(500, {"error": "Failed to update subscription"})
+                    failed = handle_payment_failure(sub, "crypto", message)
+                    conn.close()
+                    resp = {"status": "failed", "failed_attempts": failed, "message": message}
+                    if failed >= 3:
+                        resp["suspended"] = True
+                    self._send_json(200, resp)
 
             else:
                 self._send_json(400, {"error": f"Unknown provider: {provider}"})

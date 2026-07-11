@@ -20,11 +20,14 @@ import {
   FormControl,
   FormLabel,
   Divider,
+  TextField,
+  MenuItem,
 } from "@mui/material"
 import CreditCardIcon from "@mui/icons-material/CreditCard"
 import PaymentIcon from "@mui/icons-material/Payment"
 import CurrencyBitcoinIcon from "@mui/icons-material/CurrencyBitcoin"
 import CheckCircleIcon from "@mui/icons-material/CheckCircle"
+import SendIcon from "@mui/icons-material/Send"
 import { apiRequest } from "../../api/client"
 import { useAuth } from "../../context/AuthContext"
 
@@ -46,6 +49,14 @@ interface SubscriptionResponse {
   networks?: string[]
   token?: string
   amount_cents?: number
+}
+
+interface VerifyResponse {
+  status: string
+  subscription?: { id: string; status: string }
+  failed_attempts?: number
+  suspended?: boolean
+  error?: string
 }
 
 const steps = ["Choose Plan", "Payment Method", "Confirm & Pay"]
@@ -73,6 +84,13 @@ export default function SubscriptionOnboarding() {
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [result, setResult] = useState<SubscriptionResponse | null>(null)
+  const [paid, setPaid] = useState(false)
+
+  const [txHash, setTxHash] = useState("")
+  const [txNetwork, setTxNetwork] = useState("polygon")
+  const [interacConfirmation, setInteracConfirmation] = useState("")
+  const [verifying, setVerifying] = useState(false)
+  const [verifyResult, setVerifyResult] = useState<VerifyResponse | null>(null)
 
   useEffect(() => {
     setLoading(true)
@@ -96,9 +114,63 @@ export default function SubscriptionOnboarding() {
     if (res.ok) {
       setResult(res.data)
       if (res.data.checkout_url) { window.location.href = res.data.checkout_url; return }
-      setActiveStep(3)
     } else {
       setError("Failed to create subscription")
+    }
+  }
+
+  const handleVerifyCrypto = async () => {
+    if (!txHash.trim() || !result?.subscription_id) return
+    setVerifying(true)
+    setVerifyResult(null)
+    setError(null)
+    const res = await apiRequest<VerifyResponse>("banker", "POST", "/payments/verify", {
+      subscription_id: result.subscription_id,
+      provider: "crypto",
+      tx_hash: txHash.trim(),
+      network: txNetwork,
+    })
+    setVerifying(false)
+    if (res.ok) {
+      setVerifyResult(res.data)
+      if (res.data.status === "verified") {
+        setPaid(true)
+      } else {
+        setError(
+          res.data.suspended
+            ? "Payment verification failed. Account suspended after 3 failed attempts."
+            : `Verification failed. ${res.data.failed_attempts ?? 0}/3 attempts used.`
+        )
+      }
+    } else {
+      setError("Failed to verify payment")
+    }
+  }
+
+  const handleVerifyInterac = async () => {
+    if (!interacConfirmation.trim() || !result?.subscription_id) return
+    setVerifying(true)
+    setVerifyResult(null)
+    setError(null)
+    const res = await apiRequest<VerifyResponse>("banker", "POST", "/payments/verify", {
+      subscription_id: result.subscription_id,
+      provider: "interac",
+      confirmation: interacConfirmation.trim(),
+    })
+    setVerifying(false)
+    if (res.ok) {
+      setVerifyResult(res.data)
+      if (res.data.status === "verified") {
+        setPaid(true)
+      } else {
+        setError(
+          res.data.suspended
+            ? "Payment verification failed. Account suspended after 3 failed attempts."
+            : `Verification failed. ${res.data.failed_attempts ?? 0}/3 attempts used.`
+        )
+      }
+    } else {
+      setError("Failed to verify payment")
     }
   }
 
@@ -192,29 +264,106 @@ export default function SubscriptionOnboarding() {
 
   const renderConfirm = () => {
     if (submitting) return <Box sx={{ display: "flex", justifyContent: "center", py: 6 }}><CircularProgress /></Box>
+
     if (result?.interac_email) {
       return (
-        <Alert severity="info" sx={{ whiteSpace: "pre-line" }}>
-          {`Send an Interac e-Transfer to:\n\n`}
-          <strong>{result.interac_email}</strong>
-          {`\n\nAmount: $${selectedTier ? (selectedTier.price_cents / 100).toFixed(2) : "—"}`}
-          {`\nSubscription ID: ${result.subscription_id ?? "—"}`}
-          {`\n\nPlease include your subscription ID in the message field.`}
-        </Alert>
+        <Box>
+          <Alert severity="info" sx={{ whiteSpace: "pre-line", mb: 3 }}>
+            {`Send an Interac e-Transfer to:\n\n`}
+            <strong>{result.interac_email}</strong>
+            {`\n\nAmount: $${selectedTier ? (selectedTier.price_cents / 100).toFixed(2) : "—"}`}
+            {`\nSubscription ID: ${result.subscription_id ?? "—"}`}
+            {`\n\nPlease include your subscription ID in the message field.`}
+          </Alert>
+          <Paper variant="outlined" sx={{ p: 3 }}>
+            <Typography variant="h6" gutterBottom>Submit Proof of Payment</Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+              Enter the Interac confirmation code or reference from your e-transfer receipt.
+            </Typography>
+            <TextField
+              fullWidth
+              label="Interac Confirmation Code"
+              value={interacConfirmation}
+              onChange={(e) => setInteracConfirmation(e.target.value)}
+              placeholder="e.g. R1234567890"
+              sx={{ mb: 2 }}
+            />
+            <Button
+              variant="contained"
+              startIcon={verifying ? <CircularProgress size={20} /> : <SendIcon />}
+              onClick={handleVerifyInterac}
+              disabled={verifying || !interacConfirmation.trim()}
+            >
+              {verifying ? "Verifying..." : "Submit & Verify"}
+            </Button>
+            {verifyResult?.status === "verified" && (
+              <Alert severity="success" sx={{ mt: 2 }}>Payment verified successfully!</Alert>
+            )}
+          </Paper>
+        </Box>
       )
     }
+
     if (result?.wallet_address) {
       return (
-        <Alert severity="info" sx={{ whiteSpace: "pre-line" }}>
-          {`Send crypto payment to:\n\n`}
-          <strong>{result.wallet_address}</strong>
-          {`\n\nNetworks: ${result.networks?.join(", ") ?? "Polygon, Base"}`}
-          {`\nToken: ${result.token ?? "ERC20 USDC/USDT"}`}
-          {`\nSubscription ID: ${result.subscription_id ?? "—"}`}
-          {`\n\nSend the exact amount in ERC20 tokens to the address above.`}
-        </Alert>
+        <Box>
+          <Alert severity="info" sx={{ whiteSpace: "pre-line", mb: 3 }}>
+            {`Send crypto payment to:\n\n`}
+            <strong>{result.wallet_address}</strong>
+            {`\n\nNetworks: ${result.networks?.join(", ") ?? "Polygon, Base"}`}
+            {`\nToken: ${result.token ?? "ERC20 USDC/USDT"}`}
+            {`\nAmount: $${selectedTier ? (selectedTier.price_cents / 100).toFixed(2) : "—"}`}
+            {`\nSubscription ID: ${result.subscription_id ?? "—"}`}
+            {`\n\nSend the exact amount in ERC20 tokens to the address above.`}
+          </Alert>
+          <Paper variant="outlined" sx={{ p: 3 }}>
+            <Typography variant="h6" gutterBottom>Submit Transaction Hash</Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+              After sending the payment, paste your transaction hash below to verify.
+            </Typography>
+            <Grid container spacing={2}>
+              <Grid size={{ xs: 12, sm: 4 }}>
+                <TextField
+                  select
+                  fullWidth
+                  label="Network"
+                  value={txNetwork}
+                  onChange={(e) => setTxNetwork(e.target.value)}
+                  size="small"
+                >
+                  {(result.networks?.length ? result.networks : ["polygon", "base"]).map((n) => (
+                    <MenuItem key={n} value={n}>{n.charAt(0).toUpperCase() + n.slice(1)}</MenuItem>
+                  ))}
+                </TextField>
+              </Grid>
+              <Grid size={{ xs: 12, sm: 8 }}>
+                <TextField
+                  fullWidth
+                  label="Transaction Hash"
+                  value={txHash}
+                  onChange={(e) => setTxHash(e.target.value)}
+                  placeholder="0x..."
+                  sx={{ fontFamily: "monospace" }}
+                />
+              </Grid>
+            </Grid>
+            <Button
+              variant="contained"
+              startIcon={verifying ? <CircularProgress size={20} /> : <SendIcon />}
+              onClick={handleVerifyCrypto}
+              disabled={verifying || !txHash.trim()}
+              sx={{ mt: 2 }}
+            >
+              {verifying ? "Verifying..." : "Submit & Verify"}
+            </Button>
+            {verifyResult?.status === "verified" && (
+              <Alert severity="success" sx={{ mt: 2 }}>Payment verified successfully!</Alert>
+            )}
+          </Paper>
+        </Box>
       )
     }
+
     const methodLabel = paymentMethods.find((pm) => pm.id === selectedMethod)?.label ?? selectedMethod
     return (
       <>
@@ -239,11 +388,13 @@ export default function SubscriptionOnboarding() {
             </Box>
           </Box>
         </Paper>
-        {selectedMethod === "crypto" && <Alert severity="info" sx={{ mb: 2 }}>You will be shown a wallet address and network details after confirming.</Alert>}
-        {selectedMethod === "interac" && <Alert severity="info" sx={{ mb: 2 }}>You will receive Interac e-Transfer instructions after confirming.</Alert>}
+        {selectedMethod === "crypto" && <Alert severity="info" sx={{ mb: 2 }}>You will be shown a wallet address and asked for your transaction hash after confirming.</Alert>}
+        {selectedMethod === "interac" && <Alert severity="info" sx={{ mb: 2 }}>You will receive Interac e-Transfer instructions and asked for your confirmation code after confirming.</Alert>}
       </>
     )
   }
+
+  const showSuccess = paid || (activeStep >= 3)
 
   return (
     <Container maxWidth="md" sx={{ py: 4 }}>
@@ -258,7 +409,7 @@ export default function SubscriptionOnboarding() {
         {activeStep === 1 && renderPaymentMethod()}
         {activeStep === 2 && renderConfirm()}
       </Box>
-      {activeStep >= 3 ? (
+      {showSuccess ? (
         <Alert severity="success" icon={<CheckCircleIcon />} sx={{ mb: 2 }}>
           <Typography variant="h6" gutterBottom>You're all set!</Typography>
           <Typography variant="body2">Your subscription has been created. You will receive a confirmation shortly.</Typography>
@@ -269,9 +420,11 @@ export default function SubscriptionOnboarding() {
           {activeStep < steps.length - 1 ? (
             <Button variant="contained" disabled={(activeStep === 0 && !selectedTier) || loading} onClick={() => setActiveStep((s) => s + 1)}>Next</Button>
           ) : (
-            <Button variant="contained" disabled={submitting || !selectedTier} onClick={handleConfirm}>
-              {submitting ? <CircularProgress size={24} /> : "Confirm & Pay"}
-            </Button>
+            !result && (
+              <Button variant="contained" disabled={submitting || !selectedTier} onClick={handleConfirm}>
+                {submitting ? <CircularProgress size={24} /> : "Confirm & Pay"}
+              </Button>
+            )
           )}
         </Box>
       )}
