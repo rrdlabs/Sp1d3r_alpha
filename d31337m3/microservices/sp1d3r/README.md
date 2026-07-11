@@ -16,6 +16,7 @@ Custom Proof-of-Authority AppChain with an integrated crawler, task queue, and P
 - **Peer store** tracking known nodes and their chain state
 - **Chain sync** to catch up with the network on startup
 - **Task queue** for distributing crawl jobs across worker nodes
+- **Encrypted Search Pipeline** - X25519 E2E encrypted search with client-side decryption
 - **Crawler worker** with startup self-check and encrypted local payload processing
 
 ## Source Layout
@@ -40,21 +41,50 @@ src/
     self_check.py          # Startup health and capability verification
 app.py                     # HTTP server entrypoint (port 9000)
 task_queue.py              # In-memory task queue for distributed job dispatch
+search_store.py           # Encrypted search tracking and storage
 ```
 
 ## Key Endpoints
 
+### Search Endpoints (Encrypted E2E)
+
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/v1/search` | Submit encrypted search (URLs + X25519 public key) |
+| GET | `/v1/search/{id}` | Get search status/results (owner-only via `X-Requester-Pubkey` header) |
+| GET | `/v1/searches` | List user's searches (filtered by public key) |
+
+**Search Flow:**
+1. User generates X25519 keypair in browser (or loads from localStorage)
+2. Public key sent with search request to `POST /v1/search`
+3. Server creates crawl tasks, fetches URLs, encrypts results with X25519 ECDH + HKDF-SHA256 + AES-256-GCM
+4. Encrypted results include `ephemeral_public_key`, `nonce`, and `ciphertext`
+5. User retrieves encrypted results via `GET /v1/search/{id}` (owner-only)
+6. Browser decrypts using its private key - only the search owner can read results
+
+### Chain Endpoints
+
 | Method | Path | Description |
 |--------|------|-------------|
 | GET | `/health` | Service health check |
-| GET | `/chain` | List blocks on the chain |
-| GET | `/chain/:height` | Get a specific block by height |
-| POST | `/tx` | Submit a new transaction |
-| GET | `/peers` | List known P2P peers |
-| POST | `/peers` | Register a new peer |
-| POST | `/tasks` | Enqueue a crawl task |
-| GET | `/tasks` | List queued and completed tasks |
-| GET | `/task-queue/stats` | Task queue statistics |
+| GET | `/v1/chain/state` | Get chain state |
+| GET | `/v1/chain/snapshot` | Get full chain snapshot |
+| GET | `/v1/chain/blocks?since=<height>` | Get blocks since height |
+| GET | `/v1/chain/peers` | List known peers |
+| POST | `/v1/chain/peers` | Register new peer |
+| GET | `/v1/chain/ping` | Peer heartbeat |
+| GET | `/v1/chain/sync` | Get sync status |
+| POST | `/v1/chain/gossip` | Receive transaction gossip |
+
+### Task Endpoints
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/v1/tasks` | List tasks (optional `?status=` filter) |
+| POST | `/v1/tasks/create` | Create new task (admin) |
+| GET | `/v1/tasks/{id}` | Get task details |
+| GET | `/v1/tasks/pending` | Poll for pending tasks (agent) |
+| POST | `/v1/tasks/result` | Submit task results (agent) |
 
 ## Running Tests
 

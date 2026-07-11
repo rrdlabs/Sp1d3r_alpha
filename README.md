@@ -73,6 +73,7 @@ Data directories: `/var/lib/sp1d3r/{service}/`
 - Binary hash self-check and quarantine enforcement
 - P2P gossip protocol, peer store, chain sync from seed
 - Task queue for distributed crawling across node agents
+- **Encrypted Search Pipeline**: Submit URLs with X25519 public key, results encrypted and stored on chain, only search owner can decrypt
 
 ### Director — Service Orchestration
 
@@ -102,7 +103,7 @@ Data directories: `/var/lib/sp1d3r/{service}/`
 
 - React 19 + TypeScript + Vite + MUI v6
 - Admin dashboard: user management, service monitoring, node management (live nodes/tasks/peers/blacklist), document management, pricing
-- User dashboard: chain status, connected nodes, crawl runner
+- User dashboard: chain status, connected nodes, encrypted search with X25519 E2E encryption
 
 ---
 
@@ -175,10 +176,17 @@ Swagger docs: `http://localhost:8000/docs`
 | Method | Path | Description |
 |--------|------|-------------|
 | GET | `/health` | Health check |
+| POST | `/v1/search` | Submit encrypted search (URLs + X25519 pubkey) |
+| GET | `/v1/search/{id}` | Get search status/results (owner-only) |
+| GET | `/v1/searches` | List user's searches (filtered by pubkey) |
 | POST | `/v1/crawl` | Submit crawl URLs (returns task ID) |
-| GET | `/v1/chain` | Get chain state |
-| GET | `/v1/peers` | List connected peers |
-| POST | `/v1/sync` | Sync chain from peer |
+| GET | `/v1/chain/state` | Get chain state |
+| GET | `/v1/chain/peers` | List connected peers |
+| POST | `/v1/chain/peers` | Register new peer |
+| GET | `/v1/tasks/pending` | Poll for pending tasks |
+| POST | `/v1/tasks/create` | Create new task |
+| POST | `/v1/tasks/result` | Submit task results |
+| GET | `/v1/tasks/{id}` | Get task details |
 
 #### Director (port 8400)
 

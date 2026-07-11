@@ -14,6 +14,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - **Nginx proxy**: All 9 services proxied through nginx at d31337m3.com with SSL + SPA fallback.
 - **Super admin**: Created and promoted (admin/Kronik4life!!2026!!).
 
+### sp1d3r (v0.4.0 → v0.5.0)
+- **Encrypted Search Pipeline**: End-to-end encrypted search with X25519 key agreement.
+  - `POST /v1/search`: Submit URLs with X25519 public key. Creates crawl tasks, encrypts results with recipient's key.
+  - `GET /v1/search/{id}`: Retrieve search status and encrypted results (owner-only via `X-Requester-Pubkey` header).
+  - `GET /v1/searches`: List user's searches filtered by public key.
+  - **Owner-only access**: 403 blocked if requester's pubkey doesn't match search owner.
+  - **SearchStore**: File-based search tracking with status (pending/crawling/completed), task IDs, encrypted results, and failure tracking.
+  - **Encrypted results**: Each result includes `ephemeral_public_key`, `nonce`, and `ciphertext` for client-side decryption.
+- **Task completion enhancements**: Results now include ephemeral keys and ciphertext for client-side decryption.
+
 ### cityhall (v0.2.0 → v0.3.0)
 - **Suspend/unsuspend users**: POST /admin/users/{id}/suspend, POST /admin/users/{id}/unsuspend with reason.
 - **Node operator management**: POST /admin/users/{id}/set-nodeop, POST /admin/users/{id}/remove-nodeop, GET /admin/node-operators.
@@ -52,6 +62,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - **Auto-suspend**: 3 failed crypto verification attempts → auto-suspend account.
 
 ### frontend
+- **Encrypted Search Panel**: New SearchPanel component with X25519 keypair generation, encrypted search, real-time polling, and client-side decryption.
+- **X25519 Crypto Utilities**: Web Crypto API-based keypair generation, storage in localStorage, and ECDH + HKDF-SHA256 + AES-256-GCM decryption.
+- **Search History**: View past searches with status, results count, and decrypt-on-demand capability.
 - **Admin NodeManagement**: 5 tabs - Live Nodes (from director), Node Operators, Peers, Tasks (with create dialog), IP Blacklist.
 - **Admin ServiceMonitor**: Restart/kill buttons per service.
 - **Admin Documents**: Template CRUD (create/preview/edit/delete via historian+lawyer).
