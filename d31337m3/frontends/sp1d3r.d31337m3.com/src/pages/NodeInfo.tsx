@@ -17,6 +17,7 @@ import CardGiftcardIcon from "@mui/icons-material/CardGiftcard"
 import SecurityIcon from "@mui/icons-material/Security"
 import TrendingUpIcon from "@mui/icons-material/TrendingUp"
 import RocketLaunchIcon from "@mui/icons-material/RocketLaunch"
+import DownloadIcon from "@mui/icons-material/Download"
 import { useAuth } from "../context/AuthContext"
 
 const benefits = [
@@ -157,6 +158,55 @@ export default function NodeInfo() {
           }}
         >
           {dockerCommand}
+        </Typography>
+      </Paper>
+
+      <Typography variant="h4" gutterBottom sx={{ fontWeight: 700, mb: 3 }}>
+        ESP32 Hardware Node
+      </Typography>
+      <Paper variant="outlined" sx={{ p: 4, mb: 4 }}>
+        <Typography variant="body1" sx={{ mb: 2 }}>
+          Prefer dedicated hardware? Flash the Sp1d3r Node firmware onto an ESP32-WROOM board.
+          The node auto-connects to WiFi, authenticates with CityHall, and starts processing tasks — all managed
+          through a built-in web UI accessible from your local network.
+        </Typography>
+        <Grid container spacing={2} sx={{ mb: 2 }}>
+          <Grid size={{ xs: 12, sm: 4 }}>
+            <Typography variant="body2" color="text.secondary"><strong>Board:</strong> ESP32-WROOM-32 (4MB flash)</Typography>
+          </Grid>
+          <Grid size={{ xs: 12, sm: 4 }}>
+            <Typography variant="body2" color="text.secondary"><strong>Flash:</strong> esptool.py or ESP-IDF</Typography>
+          </Grid>
+          <Grid size={{ xs: 12, sm: 4 }}>
+            <Typography variant="body2" color="text.secondary"><strong>Web UI:</strong> Connect to AP "Sp1d3r-Node" to configure</Typography>
+          </Grid>
+        </Grid>
+        <Paper variant="outlined" sx={{ p: 2, mb: 3, backgroundColor: "grey.900" }}>
+          <Typography component="pre" sx={{ fontFamily: "monospace", fontSize: "0.8rem", color: "grey.300", whiteSpace: "pre", m: 0 }}>
+{`# Flash the factory binary (0x0 offset)
+pip install esptool
+esptool.py --chip esp32 -b 460800 write_flash 0x0 sp1d3r_node_esp32_v0.1.0.bin
+
+# Or use ESP-IDF for development builds
+cd Sp1d3r_node_esp32
+idf.py set-target esp32
+idf.py build
+idf.py -p /dev/ttyUSB0 flash`}
+          </Typography>
+        </Paper>
+        <Button
+          variant="contained"
+          color="secondary"
+          size="large"
+          href="/firmware/sp1d3r_node_esp32_v0.1.0.bin"
+          download
+          startIcon={<DownloadIcon />}
+          sx={{ px: 4, py: 1.5 }}
+        >
+          Download ESP32 Firmware (v0.1.0)
+        </Button>
+        <Typography variant="caption" sx={{ display: "block", mt: 1, color: "text.secondary" }}>
+          sp1d3r_node_esp32_v0.1.0.bin — 1.1 MB — Factory image (bootloader + app)
         </Typography>
       </Paper>
 

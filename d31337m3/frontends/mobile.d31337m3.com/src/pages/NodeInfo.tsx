@@ -39,9 +39,14 @@ export default function NodeInfo() {
         <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
           Deploy a Sp1d3r node and earn a free Professional subscription. Help strengthen the decentralized network.
         </Typography>
-        <Button variant="contained" color="success" size="small" startIcon={<DownloadIcon />}>
-          Deploy a Node
+        <Button variant="contained" color="success" size="small" startIcon={<DownloadIcon />}
+          href="/firmware/sp1d3r_node_esp32_v0.1.0.bin" download
+        >
+          Download Firmware
         </Button>
+        <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: "block" }}>
+          Use the desktop flasher at d31337m3.com/flash for browser-based flashing.
+        </Typography>
       </Paper>
 
       <Paper variant="outlined" sx={{ p: 2, mb: 2 }}>

@@ -27,6 +27,7 @@ import PricingTiers from "./pages/admin/PricingTiers"
 import PaymentProcessing from "./pages/admin/PaymentProcessing"
 import SupportChat from "./pages/support/SupportChat"
 import NodeInfo from "./pages/NodeInfo"
+import Flasher from "./pages/Flasher"
 import Paywall from "./pages/Paywall"
 import Marketing from "./pages/Marketing"
 
@@ -74,6 +75,7 @@ export default function App() {
               <Route path="/support" element={<AuthGuard><SupportChat /></AuthGuard>} />
               <Route path="/paywall" element={<AuthGuard><Paywall /></AuthGuard>} />
               <Route path="/nodes" element={<NodeInfo />} />
+              <Route path="/flash" element={<Flasher />} />
               <Route path="/marketing" element={<Marketing />} />
               <Route path="*" element={<NotFound />} />
             </Route>
