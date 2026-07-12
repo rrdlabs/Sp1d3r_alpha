@@ -110,3 +110,112 @@ class OTPCode(Base):
     is_used: Mapped[bool] = mapped_column(Boolean, default=False)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+# ---------------------------------------------------------------------------
+# User Signature (for document generation)
+# ---------------------------------------------------------------------------
+
+class UserSignature(Base):
+    __tablename__ = "user_signatures"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), index=True)
+    label: Mapped[str] = mapped_column(String(100), default="default")
+    signature_image: Mapped[str | None] = mapped_column(Text, nullable=True)
+    signature_text: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    is_default: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
+# ---------------------------------------------------------------------------
+# User Document (opt-out / removal letters)
+# ---------------------------------------------------------------------------
+
+class UserDocument(Base):
+    __tablename__ = "user_documents"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), index=True)
+    broker_id: Mapped[int | None] = mapped_column(ForeignKey("brokers.id"), nullable=True)
+    document_type: Mapped[str] = mapped_column(String(50))
+    title: Mapped[str] = mapped_column(String(500))
+    content: Mapped[str] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(String(20), default="draft")
+    signature_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("user_signatures.id"), nullable=True)
+    recipient_email: Mapped[str | None] = mapped_column(String(320), nullable=True)
+    recipient_address: Mapped[str | None] = mapped_column(Text, nullable=True)
+    meta: Mapped[dict] = mapped_column(JSON, default=dict)
+    sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
+# ---------------------------------------------------------------------------
+# User Keyword (tracked keywords for scraping)
+# ---------------------------------------------------------------------------
+
+class UserKeyword(Base):
+    __tablename__ = "user_keywords"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), index=True)
+    keyword: Mapped[str] = mapped_column(String(255), index=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    notify_dashboard: Mapped[bool] = mapped_column(Boolean, default=True)
+    notify_email: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
+# ---------------------------------------------------------------------------
+# Keyword Match (discovered results)
+# ---------------------------------------------------------------------------
+
+class KeywordMatch(Base):
+    __tablename__ = "keyword_matches"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    keyword_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("user_keywords.id"), index=True)
+    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), index=True)
+    source_url: Mapped[str] = mapped_column(String(2048))
+    source_name: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    context_snippet: Mapped[str | None] = mapped_column(Text, nullable=True)
+    relevance_score: Mapped[float] = mapped_column(default=0.0)
+    is_read: Mapped[bool] = mapped_column(Boolean, default=False)
+    discovered_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+# ---------------------------------------------------------------------------
+# Reputation Score (composite score per user)
+# ---------------------------------------------------------------------------
+
+class ReputationScore(Base):
+    __tablename__ = "reputation_scores"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), unique=True, index=True)
+    platform_score: Mapped[int] = mapped_column(default=0)
+    onchain_score: Mapped[int] = mapped_column(default=0)
+    composite_score: Mapped[int] = mapped_column(default=0)
+    badges: Mapped[dict] = mapped_column(JSON, default=list)
+    last_calculated: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
+# ---------------------------------------------------------------------------
+# Reputation Event (individual scoring events)
+# ---------------------------------------------------------------------------
+
+class ReputationEvent(Base):
+    __tablename__ = "reputation_events"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), index=True)
+    event_type: Mapped[str] = mapped_column(String(50), index=True)
+    points: Mapped[int] = mapped_column(default=0)
+    description: Mapped[str] = mapped_column(String(1000))
+    attestation_tx_hash: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

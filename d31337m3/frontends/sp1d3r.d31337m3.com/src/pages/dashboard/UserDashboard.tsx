@@ -26,9 +26,12 @@ import DownloadIcon from "@mui/icons-material/Download"
 import SubscriptionsIcon from "@mui/icons-material/Subscriptions"
 import SettingsIcon from "@mui/icons-material/Settings"
 import SupportAgentIcon from "@mui/icons-material/SupportAgent"
+import DescriptionIcon from "@mui/icons-material/Description"
+import KeyIcon from "@mui/icons-material/Key"
 import { apiRequest } from "../../api/client"
 import { useAuth } from "../../context/AuthContext"
 import SearchPanel from "../../components/SearchPanel"
+import ReputationWidget from "../../components/ReputationWidget"
 
 interface ChainState {
   blocks: number
@@ -384,6 +387,25 @@ export default function UserDashboard() {
           </TableContainer>
         </Paper>
       )}
+
+      <Grid container spacing={3} sx={{ mb: 3 }}>
+        <Grid size={{ xs: 12, md: 6 }}>
+          <ReputationWidget />
+        </Grid>
+        <Grid size={{ xs: 12, md: 6 }}>
+          <Paper variant="outlined" sx={{ p: 3 }}>
+            <Typography variant="h6" sx={{ fontFamily: "monospace", mb: 1 }}>Quick Links</Typography>
+            <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
+              <Button variant="outlined" component={RouterLink} to="/dashboard/documents" fullWidth sx={{ justifyContent: "flex-start" }}>
+                <DescriptionIcon sx={{ mr: 1 }} /> Manage Documents
+              </Button>
+              <Button variant="outlined" component={RouterLink} to="/dashboard/keywords" fullWidth sx={{ justifyContent: "flex-start" }}>
+                <KeyIcon sx={{ mr: 1 }} /> Track Keywords
+              </Button>
+            </Box>
+          </Paper>
+        </Grid>
+      </Grid>
 
       <SearchPanel
         hasActiveSub={hasActiveSub}

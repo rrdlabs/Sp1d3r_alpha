@@ -42,6 +42,7 @@ import FlashOnIcon from "@mui/icons-material/FlashOn"
 import SubscriptionsIcon from "@mui/icons-material/Subscriptions"
 import DescriptionIcon from "@mui/icons-material/Description"
 import AccountTreeIcon from "@mui/icons-material/AccountTree"
+import KeyIcon from "@mui/icons-material/Key"
 import { useAuth } from "../context/AuthContext"
 import ThemeToggle from "./ThemeToggle"
 
@@ -65,6 +66,8 @@ const navItems: NavItem[] = [
   { label: "Home", path: "/", icon: <HomeIcon /> },
   { label: "Dashboard", path: "/dashboard", icon: <DashboardIcon />, auth: true },
   { label: "Subscription", path: "/dashboard/subscription", icon: <SubscriptionsIcon />, auth: true },
+  { label: "Documents", path: "/dashboard/documents", icon: <DescriptionIcon />, auth: true },
+  { label: "Keywords", path: "/dashboard/keywords", icon: <KeyIcon />, auth: true },
   { label: "Run a Node", path: "/nodes", icon: <ComputerIcon /> },
   { label: "Flash ESP32", path: "/flash", icon: <FlashOnIcon /> },
   {

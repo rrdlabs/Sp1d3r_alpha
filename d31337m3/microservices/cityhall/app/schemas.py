@@ -293,3 +293,162 @@ class OTPVerifyRequest(BaseModel):
     code: str = Field(..., min_length=6, max_length=6)
     purpose: str
     device_id: str | None = None
+
+
+# ---------------------------------------------------------------------------
+# Signatures
+# ---------------------------------------------------------------------------
+
+class SignatureCreate(BaseModel):
+    label: str | None = Field("default", max_length=100)
+    signature_image: str | None = None
+    signature_text: str | None = Field(None, max_length=500)
+    is_default: bool = False
+
+
+class SignatureUpdate(BaseModel):
+    label: str | None = Field(None, max_length=100)
+    signature_image: str | None = None
+    signature_text: str | None = Field(None, max_length=500)
+    is_default: bool | None = None
+
+
+class SignatureResponse(BaseModel):
+    id: uuid.UUID
+    user_id: uuid.UUID
+    label: str
+    signature_image: str | None = None
+    signature_text: str | None = None
+    is_default: bool = False
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
+    model_config = {"from_attributes": True}
+
+
+# ---------------------------------------------------------------------------
+# Documents
+# ---------------------------------------------------------------------------
+
+class DocumentCreate(BaseModel):
+    broker_id: int | None = None
+    document_type: str = Field(..., max_length=50)
+    title: str = Field(..., max_length=500)
+    content: str
+    status: str | None = Field(None, max_length=20)
+    signature_id: uuid.UUID | None = None
+    recipient_email: str | None = None
+    recipient_address: str | None = None
+    meta: dict | None = None
+
+
+class DocumentUpdate(BaseModel):
+    title: str | None = Field(None, max_length=500)
+    content: str | None = None
+    status: str | None = Field(None, max_length=20)
+    signature_id: uuid.UUID | None = None
+    recipient_email: str | None = None
+    recipient_address: str | None = None
+    meta: dict | None = None
+
+
+class DocumentResponse(BaseModel):
+    id: uuid.UUID
+    user_id: uuid.UUID
+    broker_id: int | None = None
+    document_type: str
+    title: str
+    content: str
+    status: str
+    signature_id: uuid.UUID | None = None
+    recipient_email: str | None = None
+    recipient_address: str | None = None
+    meta: dict = {}
+    sent_at: datetime | None = None
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
+    model_config = {"from_attributes": True}
+
+
+# ---------------------------------------------------------------------------
+# Keywords
+# ---------------------------------------------------------------------------
+
+class KeywordCreate(BaseModel):
+    keyword: str = Field(..., min_length=1, max_length=255)
+    notify_dashboard: bool = True
+    notify_email: bool = False
+
+
+class KeywordUpdate(BaseModel):
+    is_active: bool | None = None
+    notify_dashboard: bool | None = None
+    notify_email: bool | None = None
+
+
+class KeywordResponse(BaseModel):
+    id: uuid.UUID
+    user_id: uuid.UUID
+    keyword: str
+    is_active: bool = True
+    notify_dashboard: bool = True
+    notify_email: bool = False
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
+    model_config = {"from_attributes": True}
+
+
+class KeywordMatchResponse(BaseModel):
+    id: uuid.UUID
+    keyword_id: uuid.UUID
+    user_id: uuid.UUID
+    source_url: str
+    source_name: str | None = None
+    context_snippet: str | None = None
+    relevance_score: float = 0.0
+    is_read: bool = False
+    discovered_at: datetime | None = None
+    model_config = {"from_attributes": True}
+
+
+class KeywordMatchItem(BaseModel):
+    keyword_id: uuid.UUID
+    source_url: str
+    source_name: str | None = None
+    context_snippet: str | None = None
+    relevance_score: float = 0.0
+
+
+class KeywordMatchBulk(BaseModel):
+    matches: list[KeywordMatchItem]
+
+
+# ---------------------------------------------------------------------------
+# Reputation
+# ---------------------------------------------------------------------------
+
+class ReputationScoreResponse(BaseModel):
+    user_id: uuid.UUID
+    platform_score: int = 0
+    onchain_score: int = 0
+    composite_score: int = 0
+    badges: list[str] = []
+    last_calculated: datetime | None = None
+    model_config = {"from_attributes": True}
+
+
+class ReputationEventResponse(BaseModel):
+    id: uuid.UUID
+    user_id: uuid.UUID
+    event_type: str
+    points: int = 0
+    description: str
+    attestation_tx_hash: str | None = None
+    created_at: datetime | None = None
+    model_config = {"from_attributes": True}
+
+
+class ReputationAttestRequest(BaseModel):
+    user_id: uuid.UUID
+    points: int = Field(..., ge=1, le=100)
+    description: str = Field(..., max_length=1000)
+    tx_hash: str | None = Field(None, max_length=255)

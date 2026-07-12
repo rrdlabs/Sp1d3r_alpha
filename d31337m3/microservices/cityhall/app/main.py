@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
 from app.middleware import RateLimitMiddleware
-from app.routers import auth, users, admin
+from app.routers import auth, users, admin, signatures, documents, keywords, reputation
 
 app = FastAPI(
     title="CityHall — d31337m3 Onboarding Gateway",
@@ -27,6 +27,10 @@ if settings.rate_limit_enabled:
 app.include_router(auth.router)
 app.include_router(users.router)
 app.include_router(admin.router)
+app.include_router(signatures.router)
+app.include_router(documents.router)
+app.include_router(keywords.router)
+app.include_router(reputation.router)
 
 
 @app.get("/health")

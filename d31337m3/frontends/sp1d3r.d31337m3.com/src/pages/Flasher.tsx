@@ -12,6 +12,10 @@ import {
   StepLabel,
   StepContent,
   TextField,
+  Select,
+  MenuItem,
+  FormControl,
+  InputLabel,
   Chip,
   Divider,
   List,
@@ -36,11 +40,15 @@ import InfoIcon from "@mui/icons-material/Info"
 import WifiIcon from "@mui/icons-material/Wifi"
 import SettingsIcon from "@mui/icons-material/Settings"
 import DownloadIcon from "@mui/icons-material/Download"
+import SaveAltIcon from "@mui/icons-material/SaveAlt"
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore"
 import ExpandLessIcon from "@mui/icons-material/ExpandLess"
 
 const FIRMWARE_URL = "/firmware/sp1d3r_node_esp32_v0.1.0.bin"
 const FIRMWARE_VERSION = "v0.1.0"
+const FIRMWARE_FILE = "sp1d3r_node_esp32_v0.1.0.bin"
+
+const BAUD_RATES = [115200, 230400, 460800, 921600]
 
 interface TerminalLine {
   text: string
@@ -76,6 +84,7 @@ export default function Flasher() {
   const [firmwareData, setFirmwareData] = useState<Uint8Array | null>(null)
   const [showTerminal, setShowTerminal] = useState(false)
   const [provision, setProvision] = useState<ProvisionConfig>(defaultProvision)
+  const [baudRate, setBaudRate] = useState(460800)
   const [webSerialSupported] = useState(
     typeof navigator !== "undefined" && "serial" in navigator,
   )
@@ -130,22 +139,36 @@ export default function Flasher() {
       const port = await navigator.serial.requestPort()
       log("Serial port acquired")
 
-      log("Connecting to ESP32 (baud 460800)...")
-      const transport = new Transport(port, true)
-      const esploader = new ESPLoader({
-        transport,
-        baudrate: 460800,
-        terminal: {
-          clean: () => {},
-          writeLine: (data: string) => log(data),
-          write: (data: string) => log(data),
-        },
-        debugLogging: false,
-      })
+      const baudRatesToTry = [baudRate, ...BAUD_RATES.filter((b) => b < baudRate)]
+      let esploader: any = null
+      let transport: any = null
+      let chip = ""
 
-      const chip = await esploader.main()
+      for (const rate of baudRatesToTry) {
+        try {
+          log(`Trying baud rate ${rate}...`)
+          transport = new Transport(port, true)
+          esploader = new ESPLoader({
+            transport,
+            baudrate: rate,
+            terminal: {
+              clean: () => {},
+              writeLine: (data: string) => log(data),
+              write: (data: string) => log(data),
+            },
+            debugLogging: false,
+          })
+          chip = await esploader.main()
+          log(`Connected at ${rate} baud: ${chip}`, "success")
+          break
+        } catch (e: any) {
+          log(`Failed at ${rate} baud: ${e?.message || e}`, "error")
+          try { await transport?.disconnect() } catch { /* ignore */ }
+          if (rate === baudRatesToTry[baudRatesToTry.length - 1]) throw e
+        }
+      }
+
       setChipName(chip)
-      log(`Connected: ${chip}`, "success")
       setStatus("flashing")
       setActiveStep(2)
 
@@ -202,9 +225,21 @@ export default function Flasher() {
       description: "Download the latest firmware or upload a local .bin file.",
       content: (
         <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
-          <Button variant="contained" startIcon={<DownloadIcon />} onClick={loadFirmwareFromServer} disabled={!!firmwareData}>
-            {firmwareData ? `Firmware loaded (${(firmwareSize / 1024).toFixed(1)} KB)` : `Download Firmware ${FIRMWARE_VERSION}`}
-          </Button>
+          <Box sx={{ display: "flex", gap: 2, flexWrap: "wrap" }}>
+            <Button variant="contained" startIcon={<DownloadIcon />} onClick={loadFirmwareFromServer} disabled={!!firmwareData}>
+              {firmwareData ? `Loaded (${(firmwareSize / 1024).toFixed(1)} KB)` : `Fetch Firmware ${FIRMWARE_VERSION}`}
+            </Button>
+            <Button
+              variant="outlined"
+              color="secondary"
+              component="a"
+              href={FIRMWARE_URL}
+              download={FIRMWARE_FILE}
+              startIcon={<SaveAltIcon />}
+            >
+              Save .bin to PC
+            </Button>
+          </Box>
           <Typography variant="body2" color="text.secondary">or upload a local .bin file:</Typography>
           <Button variant="outlined" component="label">
             Upload .bin File
@@ -233,6 +268,25 @@ export default function Flasher() {
               The device will be reset automatically.
             </Alert>
           )}
+          <FormControl fullWidth size="small" sx={{ mb: 2 }}>
+            <InputLabel>Baud Rate</InputLabel>
+            <Select
+              value={baudRate}
+              label="Baud Rate"
+              onChange={(e) => setBaudRate(Number(e.target.value))}
+            >
+              {BAUD_RATES.map((rate) => (
+                <MenuItem key={rate} value={rate}>
+                  {rate.toLocaleString()} {rate === 115200 ? " (slowest, most reliable)" : rate === 460800 ? " (fast)" : ""}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+          {baudRate >= 460800 && (
+            <Alert severity="warning" sx={{ mb: 2 }}>
+              High baud rates may fail on long USB cables or USB hubs. If flashing fails, lower to 115200 and retry.
+            </Alert>
+          )}
           <List dense>
             <ListItem>
               <ListItemIcon><UsbIcon color="primary" /></ListItemIcon>
@@ -251,6 +305,10 @@ export default function Flasher() {
       description: "Flash the Sp1d3r Node firmware to the device.",
       content: (
         <Box>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 2 }}>
+            <Chip label={`Baud: ${baudRate.toLocaleString()}`} size="small" variant="outlined" />
+            {chipName && <Chip label={chipName} color="success" size="small" />}
+          </Box>
           <Button
             variant="contained"
             color="secondary"
@@ -271,11 +329,13 @@ export default function Flasher() {
               </Typography>
             </Box>
           )}
-          {chipName && (
-            <Chip label={`Detected: ${chipName}`} color="success" sx={{ mt: 2 }} />
-          )}
-          {error && (
-            <Alert severity="error" sx={{ mt: 2 }}>{error}</Alert>
+          {status === "error" && (
+            <Alert severity="error" sx={{ mt: 2 }}>
+              {error}
+              <Typography variant="body2" sx={{ mt: 1 }}>
+                Try lowering the baud rate to 115200 and ensure you're holding the BOOT button during connection.
+              </Typography>
+            </Alert>
           )}
           {status === "done" && (
             <Alert severity="success" sx={{ mt: 2 }}>
