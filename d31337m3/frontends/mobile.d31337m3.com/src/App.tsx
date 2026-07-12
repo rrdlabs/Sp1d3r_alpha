@@ -15,6 +15,7 @@ import SubscriptionManagement from "./pages/dashboard/SubscriptionManagement"
 import Paywall from "./pages/Paywall"
 import Marketing from "./pages/Marketing"
 import NodeInfo from "./pages/NodeInfo"
+import InstallPrompt from "./components/InstallPrompt"
 
 export default function App() {
   const [isDark, setIsDark] = useState(() => localStorage.getItem("sp1d3r_theme") !== "light")
@@ -42,6 +43,7 @@ export default function App() {
             </Route>
           </Routes>
         </AuthProvider>
+        <InstallPrompt />
       </BrowserRouter>
     </ThemeProvider>
   )

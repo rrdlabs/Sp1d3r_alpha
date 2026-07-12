@@ -18,6 +18,7 @@ import BrokerManagement from "./pages/BrokerManagement"
 import Documents from "./pages/Documents"
 import PricingTiers from "./pages/PricingTiers"
 import PaymentProcessing from "./pages/PaymentProcessing"
+import InstallPrompt from "./components/InstallPrompt"
 
 export default function App() {
   const [isDark] = useState(() => localStorage.getItem("sp1d3r_theme") !== "light")
@@ -48,6 +49,7 @@ export default function App() {
             </Route>
           </Routes>
         </AuthProvider>
+        <InstallPrompt />
       </BrowserRouter>
     </ThemeProvider>
   )
