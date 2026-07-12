@@ -1,16 +1,16 @@
-const API_BASES = {
-  cityhall: import.meta.env.VITE_CITYHALL_URL || "http://localhost:8000",
-  director: import.meta.env.VITE_DIRECTOR_URL || "http://localhost:8400",
-  historian: import.meta.env.VITE_HISTORIAN_URL || "http://localhost:8100",
-  lawyer: import.meta.env.VITE_LAWYER_URL || "http://localhost:8200",
-  inboxer: import.meta.env.VITE_INBOXER_URL || "http://localhost:8300",
-  picaso: import.meta.env.VITE_PICASO_URL || "http://localhost:8500",
-  sp1d3r: import.meta.env.VITE_SP1D3R_URL || "http://localhost:9000",
-  spiderwire: import.meta.env.VITE_SPIDERWIRE_URL || "http://localhost:8600",
-  banker: import.meta.env.VITE_BANKER_URL || "http://localhost:8700",
+const API_PREFIXES: Record<string, string> = {
+  cityhall: "/cityhall",
+  director: "/director",
+  historian: "/historian",
+  lawyer: "/lawyer",
+  inboxer: "/inboxer",
+  picaso: "/picaso",
+  spiderwire: "/spiderwire",
+  banker: "/banker",
+  sp1d3r: "/sp1d3r",
 }
 
-export type ServiceName = keyof typeof API_BASES
+export type ServiceName = keyof typeof API_PREFIXES
 
 function getToken(): string | null {
   return localStorage.getItem("sp1d3r_token")
@@ -23,7 +23,7 @@ export async function apiRequest<T = unknown>(
   body?: object,
   extraHeaders?: Record<string, string>,
 ): Promise<{ ok: boolean; status: number; data: T }> {
-  const base = API_BASES[service]
+  const base = API_PREFIXES[service]
   const headers: Record<string, string> = { "Content-Type": "application/json" }
   const token = getToken()
   if (token) {
@@ -32,7 +32,8 @@ export async function apiRequest<T = unknown>(
   if (extraHeaders) {
     Object.assign(headers, extraHeaders)
   }
-  const res = await fetch(`${base.replace(/\/+$/, "")}${path}`, {
+  const url = `${base}${path}`
+  const res = await fetch(url, {
     method,
     headers,
     body: body ? JSON.stringify(body) : undefined,
@@ -42,5 +43,5 @@ export async function apiRequest<T = unknown>(
 }
 
 export function getApiBase(service: ServiceName): string {
-  return API_BASES[service]
+  return API_PREFIXES[service]
 }
