@@ -289,7 +289,11 @@ class InboxerHandler(CORSMixin, BaseHTTPRequestHandler):
                     "INSERT INTO mailouts (to_address, subject, body, status, provider) VALUES (?, ?, ?, ?, ?)",
                     (body["to_address"], body.get("subject", "Inboxer mail"), body.get("body", ""), status, "smtp"),
                 )
-            self._send(201, {"status": status})
+            if status == "sent":
+                self._send(201, {"status": status})
+            else:
+                log.warning("Mail queued (delivery failed) for %s", body["to_address"])
+                self._send(202, {"status": status, "warning": "delivery not confirmed"})
             return
         if self.path == "/settings":
             body = self._read_json()

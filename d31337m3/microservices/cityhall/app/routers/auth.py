@@ -1,10 +1,13 @@
 import secrets
 import uuid
+import logging
 from datetime import datetime, timedelta, timezone
 
 import urllib.request
 import urllib.error
 import json
+
+logger = logging.getLogger(__name__)
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, EmailStr, Field
@@ -79,9 +82,14 @@ async def _send_otp_email(to_email: str, code: str, purpose: str) -> None:
             data=json.dumps({"to_address": to_email, "subject": subject, "body": body}).encode(),
             headers={"Content-Type": "application/json"},
         )
-        urllib.request.urlopen(req, timeout=10)
-    except Exception:
-        pass
+        resp = urllib.request.urlopen(req, timeout=10)
+        resp_data = json.loads(resp.read().decode())
+        if resp_data.get("status") == "queued":
+            logger.warning("Email to %s was queued (delivery may fail): %s", to_email, resp_data)
+        else:
+            logger.info("Email to %s dispatched: %s", to_email, resp_data)
+    except Exception as exc:
+        logger.error("Failed to send OTP email to %s: %s", to_email, exc)
 
 
 async def _create_and_send_otp(
