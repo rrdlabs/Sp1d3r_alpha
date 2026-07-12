@@ -5,6 +5,7 @@ import {
   Button,
   Container,
   Grid,
+  Link,
   Paper,
   Typography,
   Card,
@@ -100,13 +101,13 @@ export default function Landing() {
         <Container maxWidth="md">
           <BugReportIcon sx={{ fontSize: 72, color: "primary.main", mb: 2 }} />
           <Typography variant="h2" gutterBottom sx={{ fontFamily: "monospace" }}>
-            Sp1d3r
+            D31337m3
           </Typography>
           <Typography variant="h5" color="text.secondary" sx={{ mb: 2 }}>
-            Decentralized reputation management & threat discovery platform
+            The Decentralized Privacy Management & Crawling Search Platform
           </Typography>
           <Typography variant="body1" color="text.secondary" sx={{ mb: 4, maxWidth: 600, mx: "auto" }}>
-            Find where your data lives on the web. Encrypted crawling, blockchain-secured evidence, and automated removal requests — all in one platform.
+            Find where your data lives on the web. Powered by Sp1d3r — our decentralized search engine with encrypted crawling, blockchain-secured evidence, and automated removal requests.
           </Typography>
           <Box sx={{ display: "flex", gap: 2, justifyContent: "center" }}>
             {token ? (
@@ -278,7 +279,11 @@ export default function Landing() {
 
       <Box component="footer" sx={{ py: 4, textAlign: "center", borderTop: 1, borderColor: "divider" }}>
         <Typography variant="body2" color="text.secondary">
-          d31337m3_ORM_alpha &mdash; Built for the decentralized web
+          <Link href="https://d31337m3.com" color="inherit" sx={{ fontFamily: "monospace", fontWeight: 700 }}>D31337m3.com</Link>
+          {" — Powered by "}
+          <Link href="/nodes" color="inherit">Sp1d3r Decentralized Private Search Engine</Link>
+          {" — a WEB3 Service by "}
+          <Link href="https://rrdlabs.online" target="_blank" rel="noopener" color="inherit" sx={{ fontWeight: 700 }}>RRDLabs</Link>
         </Typography>
       </Box>
     </Box>

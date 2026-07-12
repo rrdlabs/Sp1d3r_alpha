@@ -12,6 +12,8 @@ class Settings(BaseSettings):
     rate_limit_max_requests: int = 60
     rate_limit_window_seconds: int = 60
     banker_url: str = "http://127.0.0.1:8700"
+    director_url: str = "http://127.0.0.1:8400"
+    internal_api_key: str = "d31337m3-internal-key-change-in-production"
 
     model_config = {"env_prefix": "CITYHALL_"}
 

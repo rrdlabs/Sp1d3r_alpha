@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react"
-import { Link as RouterLink } from "react-router-dom"
+import { Link as RouterLink, useNavigate } from "react-router-dom"
 import {
+  Alert,
   Box,
   Button,
   Container,
@@ -57,10 +58,13 @@ interface LiveNode {
 interface SubStatus {
   has_active_sub: boolean
   active_subscription: { id: string; status: string; tier_id: string } | null
+  is_nodeop?: boolean
+  subscription_suspended?: boolean
 }
 
 export default function UserDashboard() {
-  const { username } = useAuth()
+  const { username, user } = useAuth()
+  const navigate = useNavigate()
   const [chainState, setChainState] = useState<ChainState | null>(null)
   const [peers, setPeers] = useState<Peer[]>([])
   const [liveNodes, setLiveNodes] = useState<LiveNode[]>([])
@@ -88,6 +92,15 @@ export default function UserDashboard() {
       if (res.ok) setSubStatus(res.data)
     })
   }, [])
+
+  const hasActiveSub = subStatus?.has_active_sub ?? false
+  const trialSearchesUsed = (user as any)?.trial_searches_used ?? 0
+  const trialUsed = trialSearchesUsed >= 7
+  const searchesRemaining = Math.max(0, 7 - trialSearchesUsed)
+
+  const handleTrialExhausted = () => {
+    navigate("/paywall")
+  }
 
   const onlineNodes = liveNodes.filter((n) => Date.now() / 1000 - n.last_seen < 120).length
 
@@ -195,7 +208,22 @@ export default function UserDashboard() {
         </Grid>
       </Grid>
 
-      {!subStatus?.has_active_sub && (
+      {!hasActiveSub && (
+        <Alert severity="info" sx={{ mb: 3 }}>
+          <strong>Trial mode:</strong> You have {searchesRemaining} free search{searchesRemaining !== 1 ? "es" : ""} remaining.
+          {searchesRemaining === 0
+            ? " Subscribe to continue searching."
+            : " Subscribe for unlimited searches, or run a node to get Pro free."}
+        </Alert>
+      )}
+
+      {subStatus?.subscription_suspended && (
+        <Alert severity="warning" sx={{ mb: 3 }}>
+          <strong>Subscription suspended:</strong> Your node appears to be offline for more than 72 hours. Bring your node back online to restore your subscription.
+        </Alert>
+      )}
+
+      {!hasActiveSub && (
         <Paper
           variant="outlined"
           sx={{
@@ -357,7 +385,12 @@ export default function UserDashboard() {
         </Paper>
       )}
 
-      <SearchPanel />
+      <SearchPanel
+        hasActiveSub={hasActiveSub}
+        trialUsed={trialUsed}
+        searchesRemaining={searchesRemaining}
+        onTrialExhausted={handleTrialExhausted}
+      />
     </Container>
   )
 }

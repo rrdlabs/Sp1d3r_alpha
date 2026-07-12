@@ -1,6 +1,6 @@
-# SP1D3R - AppChain & Distributed Crawler
+# SP1D3R - Decentralized Private Search Engine
 
-Custom Proof-of-Authority AppChain with an integrated crawler, task queue, and P2P gossip network. Serves as the decentralized backbone for the d31337m3 platform.
+The decentralized search engine powering the D31337m3 platform. Custom Proof-of-Authority AppChain with an integrated crawler, task queue, encrypted search pipeline, and P2P gossip network.
 
 **Port:** 9000 (via pm2)
 
@@ -48,11 +48,16 @@ search_store.py           # Encrypted search tracking and storage
 
 ### Search Endpoints (Encrypted E2E)
 
-| Method | Path | Description |
-|--------|------|-------------|
-| POST | `/v1/search` | Submit encrypted search (URLs + X25519 public key) |
-| GET | `/v1/search/{id}` | Get search status/results (owner-only via `X-Requester-Pubkey` header) |
-| GET | `/v1/searches` | List user's searches (filtered by public key) |
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| POST | `/v1/search` | JWT required | Submit encrypted search (URLs + X25519 public key). Gated by subscription/trial status. |
+| GET | `/v1/search/{id}` | `X-Requester-Pubkey` | Get search status/results (owner-only) |
+| GET | `/v1/searches` | `X-Requester-Pubkey` | List user's searches (filtered by public key) |
+
+**Search Authorization:**
+- `POST /v1/search` requires `Authorization: Bearer <jwt>` header.
+- Backend verifies JWT via CityHall, checks: active subscription → node operator → trial availability.
+- Trial users get 1 search/day for 7 days (7 total). After exhaustion, returns 403 with redirect to `/paywall`.
 
 **Search Flow:**
 1. User generates X25519 keypair in browser (or loads from localStorage)

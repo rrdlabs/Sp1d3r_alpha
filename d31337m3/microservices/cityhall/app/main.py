@@ -1,4 +1,4 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
@@ -59,4 +59,143 @@ async def internal_node_check(user_id: str):
             "email": user.email,
             "first_name": user.first_name,
             "last_name": user.last_name,
+            "node_pubkey": user.node_pubkey,
         }
+
+
+TRIAL_DAILY_LIMIT = 1
+TRIAL_MAX_DAYS = 7
+
+
+@app.get("/internal/trial-status")
+async def internal_trial_status(user_id: str, request: Request):
+    from uuid import UUID
+    from datetime import datetime, timezone, timedelta
+    from sqlalchemy import select
+    from app.database import get_session
+    from app.models import User
+
+    api_key = request.headers.get("X-Internal-Key", "")
+    if api_key != settings.internal_api_key:
+        from fastapi.responses import JSONResponse
+        return JSONResponse(status_code=403, content={"error": "forbidden"})
+
+    try:
+        uid = UUID(user_id)
+    except ValueError:
+        return {"trial_available": False, "error": "invalid_user_id"}
+
+    session_factory = get_session
+    async for session in session_factory():
+        result = await session.execute(select(User).where(User.id == uid))
+        user = result.scalar_one_or_none()
+        if not user:
+            return {"trial_available": False, "trial_used_up": True}
+
+        now = datetime.now(timezone.utc)
+        if user.trial_started_at is None:
+            return {"trial_available": True, "trial_used_up": False, "searches_used": 0, "days_remaining": TRIAL_MAX_DAYS}
+
+        elapsed = now - user.trial_started_at
+        if elapsed.days >= TRIAL_MAX_DAYS:
+            return {"trial_available": False, "trial_used_up": True, "searches_used": user.trial_searches_used, "days_remaining": 0}
+
+        days_remaining = TRIAL_MAX_DAYS - elapsed.days
+        searches_today = user.trial_searches_used if elapsed.days == 0 else 0
+        if elapsed.days > 0:
+            searches_today = user.trial_searches_used  # simplified: total used within window
+
+        can_search = user.trial_searches_used < TRIAL_MAX_DAYS and searches_today < TRIAL_DAILY_LIMIT
+        return {
+            "trial_available": can_search,
+            "trial_used_up": user.trial_searches_used >= TRIAL_MAX_DAYS,
+            "searches_used": user.trial_searches_used,
+            "searches_remaining": max(0, TRIAL_MAX_DAYS - user.trial_searches_used),
+            "days_remaining": days_remaining,
+        }
+
+
+@app.post("/internal/trial-mark-used")
+async def internal_trial_mark_used(user_id: str, request: Request):
+    from uuid import UUID
+    from datetime import datetime, timezone
+    from sqlalchemy import select
+    from app.database import get_session
+    from app.models import User
+
+    api_key = request.headers.get("X-Internal-Key", "")
+    if api_key != settings.internal_api_key:
+        from fastapi.responses import JSONResponse
+        return JSONResponse(status_code=403, content={"error": "forbidden"})
+
+    try:
+        uid = UUID(user_id)
+    except ValueError:
+        return {"error": "invalid_user_id"}
+
+    session_factory = get_session
+    async for session in session_factory():
+        result = await session.execute(select(User).where(User.id == uid))
+        user = result.scalar_one_or_none()
+        if not user:
+            return {"error": "user_not_found"}
+
+        now = datetime.now(timezone.utc)
+        if user.trial_started_at is None:
+            user.trial_started_at = now
+        user.trial_searches_used += 1
+        await session.flush()
+        return {"ok": True, "searches_used": user.trial_searches_used}
+
+
+@app.post("/internal/node-pubkey")
+async def internal_set_node_pubkey(request: Request):
+    from uuid import UUID
+    from sqlalchemy import select
+    from app.database import get_session
+    from app.models import User
+
+    api_key = request.headers.get("X-Internal-Key", "")
+    if api_key != settings.internal_api_key:
+        from fastapi.responses import JSONResponse
+        return JSONResponse(status_code=403, content={"error": "forbidden"})
+
+    body = await request.json()
+    user_id = body.get("user_id", "")
+    node_pubkey = body.get("node_pubkey", "")
+
+    try:
+        uid = UUID(user_id)
+    except ValueError:
+        return {"error": "invalid_user_id"}
+
+    session_factory = get_session
+    async for session in session_factory():
+        result = await session.execute(select(User).where(User.id == uid))
+        user = result.scalar_one_or_none()
+        if not user:
+            return {"error": "user_not_found"}
+
+        user.node_pubkey = node_pubkey
+        await session.flush()
+        return {"ok": True}
+
+
+@app.get("/internal/user-id-for-pubkey")
+async def internal_user_id_for_pubkey(pubkey: str, request: Request):
+    from sqlalchemy import select
+    from app.database import get_session
+    from app.models import User
+
+    api_key = request.headers.get("X-Internal-Key", "")
+    if api_key != settings.internal_api_key:
+        from fastapi.responses import JSONResponse
+        return JSONResponse(status_code=403, content={"error": "forbidden"})
+
+    session_factory = get_session
+    async for session in session_factory():
+        result = await session.execute(select(User).where(User.node_pubkey == pubkey))
+        user = result.scalar_one_or_none()
+        if not user:
+            return {"user_id": None}
+        return {"user_id": str(user.id)}

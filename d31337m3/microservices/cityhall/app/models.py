@@ -44,6 +44,10 @@ class User(Base):
     email_verified: Mapped[bool] = mapped_column(Boolean, default=False)
     email_verification_token: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
+    trial_searches_used: Mapped[int] = mapped_column(default=0)
+    trial_started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    node_pubkey: Mapped[str | None] = mapped_column(String(255), nullable=True)
+
     enrollment_data: Mapped[dict] = mapped_column(JSON, default=dict)
     extra_fields: Mapped[dict] = mapped_column(JSON, default=dict)
 

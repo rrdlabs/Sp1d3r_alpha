@@ -108,7 +108,7 @@ export default function Layout({ isDark, onThemeToggle }: Props) {
     <Box sx={{ bgcolor: "background.paper", height: "100%" }}>
       <Toolbar>
         <Typography variant="h6" sx={{ color: "primary.main", fontFamily: "monospace", fontWeight: 700 }}>
-          d31337m3
+          D31337m3
         </Typography>
       </Toolbar>
       <Divider />
@@ -191,7 +191,7 @@ export default function Layout({ isDark, onThemeToggle }: Props) {
             </IconButton>
           )}
           <Typography variant="h6" sx={{ flexGrow: 1, fontFamily: "monospace", color: "primary.main" }}>
-            Sp1d3r Platform
+            D31337m3 Platform
           </Typography>
           <ThemeToggle isDark={isDark} onToggle={onThemeToggle} />
           {username && (

@@ -55,6 +55,11 @@ PEERS_PATH = DATA_DIR / "peers.json"
 SEED_NODE = os.getenv("SP1D3R_SEED_NODE", "")
 GOSSIP_ENABLED = os.getenv("SP1D3R_GOSSIP_ENABLED", "true").lower() == "true"
 DIRECTOR_URL = os.getenv("DIRECTOR_URL", "http://127.0.0.1:8400")
+CITYHALL_URL = os.getenv("CITYHALL_URL", "http://127.0.0.1:8000")
+INTERNAL_API_KEY = os.getenv("INTERNAL_API_KEY", "d31337m3-internal-key-change-in-production")
+BANKER_URL = os.getenv("BANKER_URL", "http://127.0.0.1:8700")
+TRIAL_DAILY_LIMIT = 1
+TRIAL_MAX_DAYS = 7
 
 
 def _load_or_create_identity() -> Ed25519Identity:
@@ -85,6 +90,70 @@ if identity.public_key not in chain.authenticated_nodes:
 gossip_worker = GossipWorker(identity, peer_store, interval=2.0)
 task_queue = TaskQueue(DATA_DIR)
 search_store = SearchStore(DATA_DIR)
+
+
+def _verify_user_from_request(handler: Any) -> dict | None:
+    auth_header = handler.headers.get("Authorization", "")
+    if not auth_header.startswith("Bearer "):
+        return None
+    try:
+        req = urllib.request.Request(
+            f"{CITYHALL_URL}/users/me",
+            headers={"Authorization": auth_header},
+        )
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            return json.loads(resp.read().decode())
+    except Exception:
+        return None
+
+
+def _check_search_authorization(user_id: str) -> dict:
+    now = time.time()
+    try:
+        sub_req = urllib.request.Request(
+            f"{BANKER_URL}/subscription-status?user_id={user_id}",
+            headers={"X-Internal-Key": INTERNAL_API_KEY},
+        )
+        with urllib.request.urlopen(sub_req, timeout=5) as resp:
+            sub_data = json.loads(resp.read().decode())
+        if sub_data.get("has_active_sub"):
+            return {"allowed": True, "reason": "active_subscription"}
+        if sub_data.get("is_nodeop"):
+            return {"allowed": True, "reason": "node_operator"}
+    except Exception:
+        pass
+
+    try:
+        trial_req = urllib.request.Request(
+            f"{CITYHALL_URL}/internal/trial-status?user_id={user_id}",
+            headers={"X-Internal-Key": INTERNAL_API_KEY},
+        )
+        with urllib.request.urlopen(trial_req, timeout=5) as resp:
+            trial_data = json.loads(resp.read().decode())
+        if trial_data.get("trial_available"):
+            return {"allowed": True, "reason": "trial", "searches_remaining": trial_data.get("searches_remaining", 0)}
+        return {
+            "allowed": False,
+            "reason": "trial_exhausted",
+            "searches_used": trial_data.get("searches_used", 0),
+            "redirect": "/paywall",
+        }
+    except Exception:
+        return {"allowed": False, "reason": "auth_check_failed", "redirect": "/paywall"}
+
+
+def _mark_trial_used(user_id: str) -> None:
+    try:
+        req = urllib.request.Request(
+            f"{CITYHALL_URL}/internal/trial-mark-used?user_id={user_id}",
+            data=b"{}",
+            headers={"X-Internal-Key": INTERNAL_API_KEY, "Content-Type": "application/json"},
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            pass
+    except Exception:
+        pass
 
 
 def _sync_from_seed(seed_url: str) -> bool:
@@ -449,15 +518,37 @@ class Sp1d3rHandler(CORSMixin, BaseHTTPRequestHandler):
             if not recipient_pubkey_hex:
                 self._send(400, {"error": "recipient_pubkey_required"})
                 return
+
+            user_info = _verify_user_from_request(self)
+            if not user_info or not user_info.get("id"):
+                self._send(401, {"error": "authentication_required", "redirect": "/login"})
+                return
+
+            auth_result = _check_search_authorization(user_info["id"])
+            if not auth_result.get("allowed"):
+                self._send(403, {
+                    "error": auth_result.get("reason", "forbidden"),
+                    "redirect": auth_result.get("redirect", "/paywall"),
+                })
+                return
+
+            if auth_result.get("reason") == "trial":
+                _mark_trial_used(user_info["id"])
+
             search = search_store.create(query, urls, recipient_pubkey_hex)
             for url in urls:
                 task = task_queue.create("crawl", [url], recipient_pubkey_hex)
                 search_store.add_task(search.id, task.id)
             print(
-                f"[search] created search={search.id} urls={len(urls)} tasks={len(search.task_ids)}",
+                f"[search] created search={search.id} urls={len(urls)} tasks={len(search.task_ids)} user={user_info.get('username', 'unknown')}",
                 flush=True,
             )
-            self._send(201, search.to_dict())
+            response = search.to_dict()
+            response["_trial_info"] = {
+                "reason": auth_result.get("reason"),
+                "searches_remaining": auth_result.get("searches_remaining"),
+            }
+            self._send(201, response)
             return
 
         self._send(404, {"error": "not_found"})

@@ -14,6 +14,7 @@ STRIPE_SECRET_KEY = os.environ.get("STRIPE_SECRET_KEY", "")
 STRIPE_WEBHOOK_SECRET = os.environ.get("STRIPE_WEBHOOK_SECRET", "")
 FRONTEND_URL = os.environ.get("FRONTEND_URL", "https://d31337m3.com")
 CITYHALL_URL = os.environ.get("CITYHALL_URL", "http://cityhall:8000")
+DIRECTOR_URL = os.environ.get("DIRECTOR_URL", "http://127.0.0.1:8400")
 INBOXER_URL = os.environ.get("INBOXER_URL", "http://inboxer:8300")
 
 WALLET_ADDRESS = "0x4Ffd3170C4b650b2D7681e402b49e6C341274299"
@@ -386,9 +387,14 @@ class BankerHandler(CORSMixin, BaseHTTPRequestHandler):
                 self._send_json(400, {"error": "user_id required"})
                 return
             is_nodeop = False
+            node_username = ""
+            node_pubkey = ""
             try:
                 resp = requests.get(f"{CITYHALL_URL}/internal/node-check", params={"user_id": user_id}, timeout=5)
-                is_nodeop = resp.json().get("is_nodeop", False)
+                data = resp.json()
+                is_nodeop = data.get("is_nodeop", False)
+                node_username = data.get("username", "")
+                node_pubkey = data.get("node_pubkey", "")
             except Exception:
                 pass
             conn = get_db()
@@ -400,12 +406,59 @@ class BankerHandler(CORSMixin, BaseHTTPRequestHandler):
                 "SELECT * FROM subscriptions WHERE user_id = ? AND status LIKE 'pending%' ORDER BY created_at DESC LIMIT 1",
                 (user_id,),
             ).fetchone()
+
+            node_online = None
+            node_offline_hours = None
+            subscription_suspended = False
+
+            if is_nodeop and active_sub and row_to_dict(active_sub).get("payment_method") == "nodeop_free":
+                try:
+                    nodes_resp = requests.get(f"{DIRECTOR_URL}/nodes", timeout=5)
+                    nodes = nodes_resp.json().get("nodes", [])
+                    matched_node = None
+                    for n in nodes:
+                        if n.get("name") == node_username or (node_pubkey and n.get("pubkey") == node_pubkey):
+                            matched_node = n
+                            break
+                    if matched_node:
+                        last_seen = matched_node.get("last_seen", 0)
+                        elapsed = datetime.utcnow().timestamp() - last_seen
+                        node_offline_hours = round(elapsed / 3600, 1)
+                        node_online = elapsed < 120
+                        if elapsed > 259200:
+                            conn.execute(
+                                "UPDATE subscriptions SET status = 'suspended', updated_at = ? WHERE id = ? AND status = 'active'",
+                                (datetime.utcnow().isoformat(), active_sub["id"]),
+                            )
+                            conn.commit()
+                            subscription_suspended = True
+                            active_sub = conn.execute(
+                                "SELECT * FROM subscriptions WHERE id = ?", (active_sub["id"],)
+                            ).fetchone()
+                    else:
+                        node_online = False
+                        node_offline_hours = 999
+                        conn.execute(
+                            "UPDATE subscriptions SET status = 'suspended', updated_at = ? WHERE id = ? AND status = 'active'",
+                            (datetime.utcnow().isoformat(), active_sub["id"]),
+                        )
+                        conn.commit()
+                        subscription_suspended = True
+                        active_sub = conn.execute(
+                            "SELECT * FROM subscriptions WHERE id = ?", (active_sub["id"],)
+                        ).fetchone()
+                except Exception:
+                    pass
+
             conn.close()
             self._send_json(200, {
                 "is_nodeop": is_nodeop,
-                "has_active_sub": active_sub is not None,
+                "has_active_sub": active_sub is not None and not subscription_suspended,
                 "active_subscription": row_to_dict(active_sub) if active_sub else None,
                 "pending_subscription": row_to_dict(pending_sub) if pending_sub else None,
+                "node_online": node_online,
+                "node_offline_hours": node_offline_hours,
+                "subscription_suspended": subscription_suspended,
             })
 
         else:

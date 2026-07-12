@@ -7,6 +7,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
+## 2026-07-12
+
+### Project
+- **D31337m3 rebrand**: Platform is now "D31337m3 — The Decentralized Privacy Management & Crawling Search Platform". Sp1d3r is the decentralized search engine powering the platform. Admin pages retain Sp1d3r centralized theme.
+- **Trial mode**: New users get 1 free search per day for 7 days (7 total) without a subscription. After trial exhaustion, users are directed to a paywall page.
+- **Paywall page** (`/paywall`): Full-featured page showing platform capabilities, pricing tiers, node operator offer, grandfathering notice, and 72-hour connectivity rule.
+- **Node connectivity enforcement**: Banker auto-suspends nodeop_free subscriptions when node goes offline >72 hours. Reactivates when node comes back online.
+- **Footer branding**: "D31337m3.com — Powered by Sp1d3r Decentralized Private Search Engine — a WEB3 Service by RRDLabs" with link to rrdlabs.online.
+
+### cityhall (v0.3.0 → v0.4.0)
+- **Trial tracking model**: Added `trial_searches_used`, `trial_started_at`, `node_pubkey` to User model.
+- **Migration 007**: Added trial tracking and node_pubkey columns to users table.
+- **Internal trial endpoints**: `GET /internal/trial-status`, `POST /internal/trial-mark-used`, `POST /internal/node-pubkey`, `GET /internal/user-id-for-pubkey`.
+- **Config**: Added `director_url` and `internal_api_key` settings.
+- **Schemas**: `UserPublic` now includes `trial_searches_used`, `trial_started_at`, `node_pubkey`.
+
+### sp1d3r (v0.5.0 → v0.6.0)
+- **Search authorization gating**: `POST /v1/search` now requires JWT authentication (`Authorization: Bearer <token>`). Checks subscription status, node operator status, and trial availability before allowing search.
+- **Config**: Added `CITYHALL_URL`, `BANKER_URL`, `INTERNAL_API_KEY` env vars.
+- **Trial enforcement**: Backend checks trial status via CityHall internal endpoints. Marks trial used on successful search. Returns 403 with redirect to `/paywall` when trial exhausted.
+
+### banker
+- **Node health check**: `/subscription-status` now checks Director for node online status. Auto-suspends `nodeop_free` subscriptions when node is offline >72 hours.
+- **Config**: Added `DIRECTOR_URL` env var.
+- **Subscription suspension**: Returns `subscription_suspended`, `node_online`, `node_offline_hours` in response.
+
+### node-agent
+- **CityHall pubkey registration**: On startup, agent registers its Ed25519 public key with CityHall via `POST /internal/node-pubkey` for subscription tracking correlation.
+
+### Frontend
+- **Platform branding**: D31337m3 as platform name, Sp1d3r as search engine. Updated index.html title, Layout AppBar/sidebar, Landing hero and footer, Login page.
+- **SearchPanel**: "Powered by Sp1d3r" label with Info button opening Learn More dialog explaining Sp1d3r's capabilities (decentralized crawling, E2E encryption, blockchain verification, P2P network, zero knowledge, open & auditable).
+- **SearchPanel trial gating**: Accepts `hasActiveSub`, `trialUsed`, `searchesRemaining` props. Sends JWT with search requests. Shows trial status and handles 403 responses.
+- **UserDashboard**: Trial status banner, subscription suspension warning, SearchPanel integration with trial props.
+- **Paywall page**: Platform features, pricing from banker, "Free for Node Operators" section, grandfathering notice, 72-hour rule disclaimer.
+- **App.tsx**: Added `/paywall` route with AuthGuard.
+
+---
+
 ## 2026-07-11
 
 ### Project

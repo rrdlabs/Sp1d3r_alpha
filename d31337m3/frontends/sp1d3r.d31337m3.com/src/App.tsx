@@ -27,6 +27,7 @@ import PricingTiers from "./pages/admin/PricingTiers"
 import PaymentProcessing from "./pages/admin/PaymentProcessing"
 import SupportChat from "./pages/support/SupportChat"
 import NodeInfo from "./pages/NodeInfo"
+import Paywall from "./pages/Paywall"
 
 export default function App() {
   const [isDark, setIsDark] = useState(() => {
@@ -70,6 +71,7 @@ export default function App() {
               <Route path="/admin/pricing" element={<AuthGuard requireAdmin><PricingTiers /></AuthGuard>} />
               <Route path="/admin/payments" element={<AuthGuard requireAdmin><PaymentProcessing /></AuthGuard>} />
               <Route path="/support" element={<AuthGuard><SupportChat /></AuthGuard>} />
+              <Route path="/paywall" element={<AuthGuard><Paywall /></AuthGuard>} />
               <Route path="/nodes" element={<NodeInfo />} />
               <Route path="*" element={<NotFound />} />
             </Route>

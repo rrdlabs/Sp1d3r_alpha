@@ -65,7 +65,7 @@ export default function Login() {
           Sign In
         </Typography>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 3, textAlign: "center" }}>
-          Access your Sp1d3r dashboard
+          Access your D31337m3 dashboard
         </Typography>
         {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
         <Box component="form" onSubmit={handleSubmit}>

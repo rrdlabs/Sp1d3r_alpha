@@ -5,6 +5,10 @@ import {
   Chip,
   CircularProgress,
   Container,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
   Paper,
   Table,
   TableBody,
@@ -17,20 +21,27 @@ import {
   Alert,
   IconButton,
   Tooltip,
+  Link,
 } from "@mui/material"
 import SearchIcon from "@mui/icons-material/Search"
 import RefreshIcon from "@mui/icons-material/Refresh"
 import LockIcon from "@mui/icons-material/Lock"
+import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined"
 import CheckCircleIcon from "@mui/icons-material/CheckCircle"
 import ErrorIcon from "@mui/icons-material/Error"
 import HourglassEmptyIcon from "@mui/icons-material/HourglassEmpty"
 import ContentCopyIcon from "@mui/icons-material/ContentCopy"
+import HubIcon from "@mui/icons-material/Hub"
+import SecurityIcon from "@mui/icons-material/Security"
+import AccountTreeIcon from "@mui/icons-material/AccountTree"
+import SpeedIcon from "@mui/icons-material/Speed"
 import { apiRequest } from "../api/client"
 import {
   loadOrGenerateKeypair,
   getStoredPublicKeyHex,
   decryptFinding,
 } from "../utils/crypto"
+
 
 interface SearchResult {
   url: string
@@ -54,7 +65,14 @@ interface SearchQuery {
   completed_at: number | null
 }
 
-export default function SearchPanel() {
+interface SearchPanelProps {
+  hasActiveSub?: boolean
+  trialUsed?: boolean
+  searchesRemaining?: number
+  onTrialExhausted?: () => void
+}
+
+export default function SearchPanel({ hasActiveSub = true, trialUsed = false, searchesRemaining: _searchesRemaining, onTrialExhausted }: SearchPanelProps) {
   const [urls, setUrls] = useState("")
   const [pubKey, setPubKey] = useState("")
   const [searching, setSearching] = useState(false)
@@ -64,6 +82,7 @@ export default function SearchPanel() {
   const [decrypting, setDecrypting] = useState(false)
   const [error, setError] = useState("")
   const [keyReady, setKeyReady] = useState(false)
+  const [learnMoreOpen, setLearnMoreOpen] = useState(false)
 
   useEffect(() => {
     const init = async () => {
@@ -96,20 +115,39 @@ export default function SearchPanel() {
   const handleSearch = async () => {
     const urlList = urls.split("\n").map((u) => u.trim()).filter(Boolean)
     if (!urlList.length) return
+    if (!hasActiveSub && !trialUsed) {
+    } else if (!hasActiveSub && trialUsed) {
+      setError("Trial exhausted. Please subscribe to continue searching.")
+      onTrialExhausted?.()
+      return
+    }
     setSearching(true)
     setError("")
     setCurrentSearch(null)
     setDecryptedResults(new Map())
 
+    const token = localStorage.getItem("sp1d3r_token")
     const res = await apiRequest<SearchQuery>("sp1d3r", "POST", "/v1/search", {
       query: urlList.join(", "),
       urls: urlList,
       recipient_pubkey: pubKey,
-    })
+    }, token ? { "Authorization": `Bearer ${token}` } : undefined)
 
     if (res.ok) {
       setCurrentSearch(res.data)
+      const trialInfo = (res.data as any)._trial_info
+      if (trialInfo?.reason === "trial" && onTrialExhausted) {
+        onTrialExhausted()
+      }
       pollSearch(res.data.id)
+    } else if (res.status === 403) {
+      const data = res.data as any
+      if (data?.redirect === "/paywall") {
+        setError("Trial search limit reached. Redirecting to subscription page...")
+        onTrialExhausted?.()
+      } else {
+        setError(data?.error || "Search request forbidden")
+      }
     } else {
       setError("Search request failed")
     }
@@ -182,7 +220,7 @@ export default function SearchPanel() {
   return (
     <Container maxWidth="lg">
       <Paper sx={{ p: 3, mb: 3 }} variant="outlined">
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 2 }}>
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1 }}>
           <SearchIcon color="primary" />
           <Typography variant="h6" sx={{ fontFamily: "monospace", fontWeight: 700 }}>
             Encrypted Search
@@ -194,6 +232,16 @@ export default function SearchPanel() {
             size="small"
             sx={{ ml: 1 }}
           />
+        </Box>
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 2 }}>
+          <Typography variant="body2" color="text.secondary">
+            Powered by <strong>Sp1d3r</strong> — Decentralized Private Search Engine
+          </Typography>
+          <Tooltip title="Learn more about Sp1d3r">
+            <IconButton size="small" onClick={() => setLearnMoreOpen(true)}>
+              <InfoOutlinedIcon fontSize="small" />
+            </IconButton>
+          </Tooltip>
         </Box>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
           Submit URLs to crawl. Results are encrypted with your X25519 public key and can only be decrypted by you.
@@ -371,6 +419,72 @@ export default function SearchPanel() {
           </TableContainer>
         </Paper>
       )}
+
+      <Dialog open={learnMoreOpen} onClose={() => setLearnMoreOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle sx={{ fontFamily: "monospace", fontWeight: 700 }}>
+          About Sp1d3r
+        </DialogTitle>
+        <DialogContent>
+          <Typography variant="body1" sx={{ mb: 3 }}>
+            <strong>Sp1d3r</strong> is the decentralized private search engine that powers D31337m3's encrypted crawling capabilities.
+          </Typography>
+          <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+            <Box sx={{ display: "flex", alignItems: "flex-start", gap: 1.5 }}>
+              <SearchIcon color="primary" sx={{ mt: 0.3 }} />
+              <Box>
+                <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>Decentralized Crawling</Typography>
+                <Typography variant="body2" color="text.secondary">Search tasks are distributed across a network of nodes — no single point of failure.</Typography>
+              </Box>
+            </Box>
+            <Box sx={{ display: "flex", alignItems: "flex-start", gap: 1.5 }}>
+              <LockIcon color="success" sx={{ mt: 0.3 }} />
+              <Box>
+                <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>E2E Encryption</Typography>
+                <Typography variant="body2" color="text.secondary">Results are encrypted with X25519 + AES-256-GCM. Only you can decrypt them.</Typography>
+              </Box>
+            </Box>
+            <Box sx={{ display: "flex", alignItems: "flex-start", gap: 1.5 }}>
+              <AccountTreeIcon color="primary" sx={{ mt: 0.3 }} />
+              <Box>
+                <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>Blockchain Verified</Typography>
+                <Typography variant="body2" color="text.secondary">Every crawl is committed to an immutable chain for tamper-proof audit trails.</Typography>
+              </Box>
+            </Box>
+            <Box sx={{ display: "flex", alignItems: "flex-start", gap: 1.5 }}>
+              <HubIcon color="secondary" sx={{ mt: 0.3 }} />
+              <Box>
+                <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>Peer-to-Peer Network</Typography>
+                <Typography variant="body2" color="text.secondary">Nodes communicate via gossip protocol for resilient, censorship-resistant operation.</Typography>
+              </Box>
+            </Box>
+            <Box sx={{ display: "flex", alignItems: "flex-start", gap: 1.5 }}>
+              <SecurityIcon color="warning" sx={{ mt: 0.3 }} />
+              <Box>
+                <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>Zero Knowledge</Typography>
+                <Typography variant="body2" color="text.secondary">The platform never sees your plaintext results. Cryptographic guarantees, not promises.</Typography>
+              </Box>
+            </Box>
+            <Box sx={{ display: "flex", alignItems: "flex-start", gap: 1.5 }}>
+              <SpeedIcon color="info" sx={{ mt: 0.3 }} />
+              <Box>
+                <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>Open & Auditable</Typography>
+                <Typography variant="body2" color="text.secondary">Run your own node to verify the network independently. Full transparency.</Typography>
+              </Box>
+            </Box>
+          </Box>
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 3 }}>
+            Want to contribute?{" "}
+            <Link href="/nodes" onClick={() => setLearnMoreOpen(false)}>Run a Sp1d3r node</Link>
+            {" "}and get a free Pro subscription.
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setLearnMoreOpen(false)}>Close</Button>
+          <Button variant="contained" href="https://rrdlabs.online" target="_blank" rel="noopener">
+            RRDLabs
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Container>
   )
 }

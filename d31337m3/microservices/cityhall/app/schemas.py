@@ -108,6 +108,9 @@ class UserPublic(BaseModel):
     signup_date: datetime | None = None
     enrollment_data: dict = {}
     extra_fields: dict = {}
+    trial_searches_used: int = 0
+    trial_started_at: datetime | None = None
+    node_pubkey: str | None = None
 
     model_config = {"from_attributes": True}
 

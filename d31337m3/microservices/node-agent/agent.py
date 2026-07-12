@@ -273,6 +273,46 @@ class NodeState:
             return True
         return False
 
+    def register_node_pubkey_with_cityhall(self) -> bool:
+        user_id = self._get_user_id_from_jwt()
+        if not user_id:
+            return False
+        url = f"{self.cfg.cityhall_url.rstrip('/')}/internal/node-pubkey"
+        body = json.dumps({
+            "user_id": user_id,
+            "node_pubkey": self.pubkey_hex,
+        }).encode()
+        try:
+            req = urllib.request.Request(
+                url,
+                data=body,
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+            with urllib.request.urlopen(req, timeout=5) as resp:
+                result = json.loads(resp.read().decode())
+                if result.get("ok"):
+                    log.info("Registered node pubkey with CityHall")
+                    return True
+        except Exception as exc:
+            log.warning("Failed to register node pubkey: %s", exc)
+        return False
+
+    def _get_user_id_from_jwt(self) -> str | None:
+        try:
+            import base64
+            parts = self.jwt.split(".")
+            if len(parts) < 2:
+                return None
+            payload = parts[1]
+            padding = 4 - len(payload) % 4
+            if padding != 4:
+                payload += "=" * padding
+            data = json.loads(base64.urlsafe_b64decode(payload))
+            return data.get("sub")
+        except Exception:
+            return None
+
     def poll_tasks(self) -> dict | None:
         url = f"{self.cfg.sp1d3r_url.rstrip('/')}/v1/tasks/pending"
         result = fetch_json(
@@ -409,6 +449,9 @@ def main() -> None:
     # Register as peer
     if not state.register_peer():
         log.warning("Could not register as peer, will retry in background")
+
+    # Register node pubkey with CityHall for subscription tracking
+    state.register_node_pubkey_with_cityhall()
 
     # Fetch initial chain state
     state.sync_chain()

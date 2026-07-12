@@ -1,9 +1,9 @@
 
-# d31337m3 (Pronounced: Delete Me)
+# D31337m3 (Pronounced: Delete Me)
 
-**Privacy and Reputation Management SaaS Platform**
+**The Decentralized Privacy Management & Crawling Search Platform**
 
-d31337m3 is a privacy and reputation management platform combining a distributed crawler network with a custom Proof-of-Authority AppChain. It scrapes data from web brokers and search engine indexes, encrypts findings, commits cryptographic proofs to an immutable blockchain, and provides identity management, legal document generation, secure messaging, and a full admin/user UI.
+D31337m3 is a decentralized privacy and reputation management platform combining a distributed crawler network with a custom Proof-of-Authority AppChain. Powered by **Sp1d3r** — our decentralized private search engine — it scrapes data from web brokers and search engine indexes with end-to-end encryption, commits cryptographic proofs to an immutable blockchain, and provides identity management, legal document generation, secure messaging, and a full admin/user UI.
 
 > **Status: ALPHA** — unstable, incomplete, not production-ready.
 
