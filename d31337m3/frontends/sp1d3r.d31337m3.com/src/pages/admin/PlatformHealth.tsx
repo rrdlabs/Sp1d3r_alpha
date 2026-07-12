@@ -77,14 +77,14 @@ export default function PlatformHealth() {
         name: "banker",
         healthy: bHealthy,
         status: bHealthy ? "healthy" : "unreachable",
-        url: svcMap["banker"]?.url || "localhost:8700",
+        url: svcMap["banker"]?.url || "/banker",
       }
     } else {
       svcMap["banker"] = {
         name: "banker",
         healthy: false,
         status: "unreachable",
-        url: svcMap["banker"]?.url || "localhost:8700",
+        url: svcMap["banker"]?.url || "/banker",
       }
     }
 

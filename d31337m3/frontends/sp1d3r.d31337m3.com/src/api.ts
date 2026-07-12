@@ -1,79 +1,47 @@
-const DEFAULTS = {
-  baseUrl: "http://localhost:8080",
-  authToken: "",
+const API_PREFIXES: Record<string, string> = {
+  cityhall: "/cityhall",
+  director: "/director",
+  historian: "/historian",
+  lawyer: "/lawyer",
+  inboxer: "/inboxer",
+  picaso: "/picaso",
+  spiderwire: "/spiderwire",
+  banker: "/banker",
+  sp1d3r: "/sp1d3r",
 }
 
-function storageKey(key: string): string {
-  return `sp1d3r_panel_${key}`
+export type ServiceName = keyof typeof API_PREFIXES
+
+function getToken(): string | null {
+  return localStorage.getItem("sp1d3r_token")
 }
 
-function load(key: string): string {
-  return localStorage.getItem(storageKey(key)) ?? ""
-}
-
-function save(key: string, value: string): void {
-  localStorage.setItem(storageKey(key), value)
-}
-
-export function loadBaseUrl(): string {
-  return load("baseUrl") || DEFAULTS.baseUrl
-}
-
-export function saveBaseUrl(url: string): void {
-  save("baseUrl", url)
-}
-
-export function loadAuthToken(): string {
-  return load("authToken")
-}
-
-export function saveAuthToken(token: string): void {
-  save("authToken", token)
-}
-
-async function request(
-  baseUrl: string,
+export async function apiRequest<T = unknown>(
+  service: ServiceName,
   method: string,
   path: string,
   body?: object,
-  authToken?: string,
-): Promise<{ ok: boolean; status: number; data: unknown }> {
+  extraHeaders?: Record<string, string>,
+): Promise<{ ok: boolean; status: number; data: T }> {
+  const base = API_PREFIXES[service]
   const headers: Record<string, string> = { "Content-Type": "application/json" }
-  if (authToken) {
-    headers["Authorization"] = `Bearer ${authToken}`
+  const token = getToken()
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`
   }
-  const res = await fetch(`${baseUrl.replace(/\/+$/, "")}${path}`, {
+  if (extraHeaders) {
+    Object.assign(headers, extraHeaders)
+  }
+  const url = `${base}${path}`
+  const res = await fetch(url, {
     method,
     headers,
     body: body ? JSON.stringify(body) : undefined,
   })
   const data = await res.json()
-  return { ok: res.ok, status: res.status, data }
+  return { ok: res.ok, status: res.status, data: data as T }
 }
 
-export interface HealthResponse {
-  status: string
-}
-
-export async function checkHealth(
-  baseUrl: string,
-): Promise<{ ok: boolean; status: number; data: unknown }> {
-  return request(baseUrl, "GET", "/health")
-}
-
-export interface CrawlRequest {
-  urls: string[]
-  recipient_public_key: string
-}
-
-export async function submitCrawl(
-  baseUrl: string,
-  urls: string[],
-  recipientPublicKey: string,
-  authToken: string,
-): Promise<{ ok: boolean; status: number; data: unknown }> {
-  return request(baseUrl, "POST", "/v1/crawl", {
-    urls,
-    recipient_public_key: recipientPublicKey,
-  }, authToken)
+export function getApiBase(service: ServiceName): string {
+  return API_PREFIXES[service]
 }
