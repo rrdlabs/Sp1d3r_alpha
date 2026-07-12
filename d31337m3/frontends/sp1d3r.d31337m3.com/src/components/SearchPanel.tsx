@@ -116,12 +116,9 @@ export default function SearchPanel({ hasActiveSub = true, trialUsed = false, se
   const [superDecryptedResults, setSuperDecryptedResults] = useState<Map<string, string>>(new Map())
 
   useEffect(() => {
-    const init = async () => {
-      const { publicKeyHex } = await loadOrGenerateKeypair()
-      setPubKey(publicKeyHex)
-      setKeyReady(true)
-    }
-    init()
+    loadOrGenerateKeypair()
+      .then(({ publicKeyHex }) => { setPubKey(publicKeyHex); setKeyReady(true) })
+      .catch((err) => { console.error("Keypair init failed:", err); setKeyReady(true) })
   }, [])
 
   const loadHistory = useCallback(async () => {

@@ -33,7 +33,7 @@ export default function SearchPanel({ hasActiveSub = true, trialUsed = false, on
   const [superDecrypted, setSuperDecrypted] = useState<Map<string, string>>(new Map())
   const [superLearnOpen, setSuperLearnOpen] = useState(false)
 
-  useEffect(() => { loadOrGenerateKeypair().then(({ publicKeyHex }) => { setPubKey(publicKeyHex); setKeyReady(true) }) }, [])
+  useEffect(() => { loadOrGenerateKeypair().then(({ publicKeyHex }) => { setPubKey(publicKeyHex); setKeyReady(true) }).catch((err) => { console.error("Keypair init failed:", err); setKeyReady(true) }) }, [])
   const truncate = (s: string, l: number) => s.length > l ? s.slice(0, l) + "..." : s
 
   const handleSearch = async () => {
