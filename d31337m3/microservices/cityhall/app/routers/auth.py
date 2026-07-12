@@ -213,7 +213,7 @@ async def login(
         )
     )
 
-    if not known and device_id:
+    if not known and device_id and not user.is_admin:
         await _create_and_send_otp(session, user, "login", device_id)
         email_hint = user.email[:3] + "***" + user.email[user.email.index("@"):]
         return OTPRequiredResponse(
