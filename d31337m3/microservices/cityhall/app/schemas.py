@@ -354,6 +354,7 @@ class DocumentCreate(BaseModel):
     signature_id: uuid.UUID | None = None
     recipient_email: str | None = None
     recipient_address: str | None = None
+    auto_submit: bool = False
     meta: dict | None = None
 
 
@@ -364,6 +365,7 @@ class DocumentUpdate(BaseModel):
     signature_id: uuid.UUID | None = None
     recipient_email: str | None = None
     recipient_address: str | None = None
+    auto_submit: bool | None = None
     meta: dict | None = None
 
 
@@ -378,6 +380,7 @@ class DocumentResponse(BaseModel):
     signature_id: uuid.UUID | None = None
     recipient_email: str | None = None
     recipient_address: str | None = None
+    auto_submit: bool = False
     meta: dict = {}
     sent_at: datetime | None = None
     created_at: datetime | None = None

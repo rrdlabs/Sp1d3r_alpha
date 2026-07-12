@@ -155,6 +155,7 @@ class UserDocument(Base):
     signature_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("user_signatures.id"), nullable=True)
     recipient_email: Mapped[str | None] = mapped_column(String(320), nullable=True)
     recipient_address: Mapped[str | None] = mapped_column(Text, nullable=True)
+    auto_submit: Mapped[bool] = mapped_column(Boolean, default=False)
     meta: Mapped[dict] = mapped_column(JSON, default=dict)
     sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

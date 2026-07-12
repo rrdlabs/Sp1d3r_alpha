@@ -16,6 +16,7 @@ import {
   MenuItem,
   Paper,
   Select,
+  Switch,
   Tab,
   Tabs,
   Table,
@@ -56,6 +57,7 @@ interface Document {
   signature_id: string | null
   recipient_email: string | null
   recipient_address: string | null
+  auto_submit: boolean
   meta: Record<string, unknown>
   created_at: string
 }
@@ -123,6 +125,7 @@ export default function UserDocuments() {
   const [content, setContent] = useState("")
   const [recipientEmail, setRecipientEmail] = useState("")
   const [recipientAddress, setRecipientAddress] = useState("")
+  const [autoSubmit, setAutoSubmit] = useState(false)
 
   const [sigText, setSigText] = useState("")
   const [sigLabel, setSigLabel] = useState("default")
@@ -175,6 +178,7 @@ export default function UserDocuments() {
     setContent(doc.content)
     setRecipientEmail(doc.recipient_email || "")
     setRecipientAddress(doc.recipient_address || "")
+    setAutoSubmit(doc.auto_submit)
     setDocDialogOpen(true)
   }
 
@@ -183,12 +187,14 @@ export default function UserDocuments() {
     if (editDoc) {
       await apiRequest("cityhall", "PATCH", `/documents/${editDoc.id}`, {
         title, content, recipient_email: recipientEmail || null, recipient_address: recipientAddress || null,
+        auto_submit: autoSubmit,
       })
     } else {
       await apiRequest("cityhall", "POST", "/documents", {
         document_type: docType, title, content,
         signature_id: defaultSig?.id || null,
         recipient_email: recipientEmail || null, recipient_address: recipientAddress || null,
+        auto_submit: autoSubmit,
       })
     }
     setDocDialogOpen(false)
@@ -275,6 +281,12 @@ export default function UserDocuments() {
                       </TableCell>
                       <TableCell>
                         <Chip size="small" label={doc.status} color={STATUS_COLORS[doc.status] || "default"} />
+                        {doc.auto_submit && doc.status === "sent" && (
+                          <Chip size="small" label="auto-sent" color="success" variant="outlined" sx={{ ml: 0.5 }} />
+                        )}
+                        {doc.auto_submit && doc.status !== "sent" && (
+                          <Chip size="small" label="auto-submit" color="info" variant="outlined" sx={{ ml: 0.5 }} />
+                        )}
                       </TableCell>
                       <TableCell>{doc.created_at ? new Date(doc.created_at).toLocaleDateString() : "—"}</TableCell>
                       <TableCell align="right">
@@ -355,6 +367,17 @@ export default function UserDocuments() {
             </Grid>
             <Grid size={{ xs: 12, sm: 6 }}>
               <TextField fullWidth size="small" label="Recipient Address" value={recipientAddress} onChange={(e) => setRecipientAddress(e.target.value)} />
+            </Grid>
+            <Grid size={{ xs: 12 }}>
+              <Box sx={{ display: "flex", alignItems: "center", gap: 2, py: 1 }}>
+                <Switch checked={autoSubmit} onChange={(e) => setAutoSubmit(e.target.checked)} />
+                <Box>
+                  <Typography variant="body2" sx={{ fontWeight: 600 }}>Auto-submit when signed</Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    Automatically sends to {recipientEmail || "recipient email"} when you generate this document
+                  </Typography>
+                </Box>
+              </Box>
             </Grid>
           </Grid>
         </DialogContent>

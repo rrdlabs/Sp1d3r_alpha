@@ -33,7 +33,9 @@ This request is made pursuant to Cal. Civ. Code § 1798.120 (right to opt out of
 Please respond within 45 days as required by the CCPA.
 
 Sincerely,
-[YOUR NAME]`,
+[YOUR NAME]
+
+[SIGNATURE]`,
   },
   {
     id: "gdpr_erasure",
@@ -65,7 +67,9 @@ I request:
 Please respond within 30 days as required by Article 12(3) GDPR.
 
 Sincerely,
-[YOUR NAME]`,
+[YOUR NAME]
+
+[SIGNATURE]`,
   },
   {
     id: "data_removal_broker",
@@ -93,7 +97,9 @@ Under the CCPA and applicable state privacy laws, you are required to honor veri
 Please respond within 45 days.
 
 Sincerely,
-[YOUR NAME]`,
+[YOUR NAME]
+
+[SIGNATURE]`,
   },
   {
     id: "cease_desist_harassment",
@@ -128,7 +134,9 @@ This letter is written without prejudice to my rights and remedies, all of which
 Sincerely,
 [YOUR NAME]
 [YOUR ADDRESS]
-[YOUR CONTACT INFORMATION]`,
+[YOUR CONTACT INFORMATION]
+
+[SIGNATURE]`,
   },
   {
     id: "cease_desist_defamation",
@@ -165,7 +173,9 @@ I demand that you:
 If you fail to comply, I will pursue legal action including claims for defamation, tortious interference, and intentional infliction of emotional distress.
 
 Sincerely,
-[YOUR NAME]`,
+[YOUR NAME]
+
+[SIGNATURE]`,
   },
   {
     id: "dmca_takedown",
@@ -208,7 +218,9 @@ Please send your response to:
 [YOUR ADDRESS]
 
 Sincerely,
-[YOUR NAME]`,
+[YOUR NAME]
+
+[SIGNATURE]`,
   },
   {
     id: "fcra_dispute",
@@ -241,7 +253,9 @@ Under § 1681i, you are required to:
 Please investigate these items and correct my credit report accordingly.
 
 Sincerely,
-[YOUR NAME]`,
+[YOUR NAME]
+
+[SIGNATURE]`,
   },
   {
     id: "fair_debt_validation",
@@ -274,7 +288,9 @@ Until you provide validation, I request that you:
 Under 15 U.S.C. § 1692g(b), you must cease collection until validation is provided.
 
 Sincerely,
-[YOUR NAME]`,
+[YOUR NAME]
+
+[SIGNATURE]`,
   },
   {
     id: "opt_out_prea",
@@ -301,7 +317,9 @@ I request that you:
 For joint accounts, this applies to both account holders.
 
 Sincerely,
-[YOUR NAME]`,
+[YOUR NAME]
+
+[SIGNATURE]`,
   },
   {
     id: "online_account_deletion",
@@ -329,7 +347,9 @@ This request is made pursuant to [CCPA § 1798.105 / GDPR Article 17 / applicabl
 Please respond within 30 days.
 
 Sincerely,
-[YOUR NAME]`,
+[YOUR NAME]
+
+[SIGNATURE]`,
   },
 ]
 

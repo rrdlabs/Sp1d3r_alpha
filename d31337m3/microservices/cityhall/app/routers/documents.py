@@ -1,4 +1,5 @@
 import uuid
+from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -61,6 +62,7 @@ async def create_document(
         signature_id=body.signature_id,
         recipient_email=body.recipient_email,
         recipient_address=body.recipient_address,
+        auto_submit=body.auto_submit,
         meta=body.meta or {},
     )
     session.add(doc)
@@ -92,6 +94,8 @@ async def update_document(
         doc.recipient_email = body.recipient_email
     if body.recipient_address is not None:
         doc.recipient_address = body.recipient_address
+    if body.auto_submit is not None:
+        doc.auto_submit = body.auto_submit
     if body.meta is not None:
         doc.meta = body.meta
 
@@ -142,6 +146,14 @@ async def generate_document(
     elif sig_text:
         sig_html = f'<span style="font-family:cursive;font-size:1.4em;font-style:italic;">{sig_text}</span>'
 
+    content = doc.content
+    if "[SIGNATURE]" in content:
+        content = content.replace("[SIGNATURE]", sig_html)
+    else:
+        content = content + "\n\n" + sig_html
+
+    doc.content = content
+
     doc.meta = {
         **doc.meta,
         "generated_for": f"{u.first_name} {u.last_name}" if u else "",
@@ -150,7 +162,16 @@ async def generate_document(
         "signature_image": sig_image,
         "signature_html": sig_html,
     }
-    doc.status = "generated"
+
+    now = datetime.now(timezone.utc)
+    if doc.auto_submit and doc.recipient_email:
+        doc.status = "sent"
+        doc.sent_at = now
+        doc.meta["auto_submitted"] = True
+        doc.meta["submitted_at"] = now.isoformat()
+    else:
+        doc.status = "generated"
+
     await session.flush()
     await session.refresh(doc)
     return doc
