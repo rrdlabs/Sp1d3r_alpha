@@ -125,20 +125,30 @@ async def generate_document(
         raise HTTPException(status_code=404, detail="document not found")
 
     sig_text = ""
+    sig_image = ""
     if doc.signature_id:
         sig_result = await session.execute(select(UserSignature).where(UserSignature.id == doc.signature_id))
         sig = sig_result.scalar_one_or_none()
         if sig:
             sig_text = sig.signature_text or ""
+            sig_image = sig.signature_image or ""
 
     user_result = await session.execute(select(User).where(User.id == user.id))
     u = user_result.scalar_one_or_none()
+
+    sig_html = ""
+    if sig_image:
+        sig_html = f'<img src="{sig_image}" alt="Signature" style="max-height:80px;" />'
+    elif sig_text:
+        sig_html = f'<span style="font-family:cursive;font-size:1.4em;font-style:italic;">{sig_text}</span>'
 
     doc.meta = {
         **doc.meta,
         "generated_for": f"{u.first_name} {u.last_name}" if u else "",
         "generated_email": u.email if u else "",
         "signature_text": sig_text,
+        "signature_image": sig_image,
+        "signature_html": sig_html,
     }
     doc.status = "generated"
     await session.flush()

@@ -16,6 +16,8 @@ import {
   MenuItem,
   Paper,
   Select,
+  Tab,
+  Tabs,
   Table,
   TableBody,
   TableCell,
@@ -29,6 +31,9 @@ import AddIcon from "@mui/icons-material/Add"
 import DeleteIcon from "@mui/icons-material/Delete"
 import SendIcon from "@mui/icons-material/Send"
 import EditIcon from "@mui/icons-material/Edit"
+import FileTemplateIcon from "@mui/icons-material/Description"
+import SignaturePad from "../../components/SignaturePad"
+import { DOC_TEMPLATES, TEMPLATE_CATEGORIES, type DocTemplate } from "../../data/docTemplates"
 import { apiRequest } from "../../api/client"
 
 interface Signature {
@@ -76,6 +81,8 @@ export default function UserDocuments() {
   const [loading, setLoading] = useState(true)
   const [docDialogOpen, setDocDialogOpen] = useState(false)
   const [sigDialogOpen, setSigDialogOpen] = useState(false)
+  const [templateDialogOpen, setTemplateDialogOpen] = useState(false)
+  const [templateFilter, setTemplateFilter] = useState("all")
   const [editDoc, setEditDoc] = useState<Document | null>(null)
 
   const [docType, setDocType] = useState("opt_out")
@@ -86,6 +93,8 @@ export default function UserDocuments() {
 
   const [sigText, setSigText] = useState("")
   const [sigLabel, setSigLabel] = useState("default")
+  const [sigImage, setSigImage] = useState<string>("")
+  const [sigTab, setSigTab] = useState(0)
 
   const loadAll = async () => {
     setLoading(true)
@@ -101,12 +110,28 @@ export default function UserDocuments() {
   useEffect(() => { loadAll() }, [])
 
   const openNewDoc = () => {
+    setTemplateDialogOpen(true)
+  }
+
+  const applyTemplate = (tpl: DocTemplate) => {
+    setEditDoc(null)
+    setDocType(tpl.doc_type)
+    setTitle(tpl.name)
+    setContent(tpl.content)
+    setRecipientEmail("")
+    setRecipientAddress("")
+    setTemplateDialogOpen(false)
+    setDocDialogOpen(true)
+  }
+
+  const openNewBlankDoc = () => {
     setEditDoc(null)
     setDocType("opt_out")
     setTitle("")
     setContent("")
     setRecipientEmail("")
     setRecipientAddress("")
+    setTemplateDialogOpen(false)
     setDocDialogOpen(true)
   }
 
@@ -149,12 +174,18 @@ export default function UserDocuments() {
   }
 
   const saveSig = async () => {
+    const hasDrawing = sigTab === 0 && sigImage
     await apiRequest("cityhall", "POST", "/signatures", {
-      label: sigLabel, signature_text: sigText, is_default: sigs.length === 0,
+      label: sigLabel,
+      signature_text: sigTab === 1 ? sigText : null,
+      signature_image: hasDrawing ? sigImage : null,
+      is_default: sigs.length === 0,
     })
     setSigDialogOpen(false)
     setSigText("")
     setSigLabel("default")
+    setSigImage("")
+    setSigTab(0)
     loadAll()
   }
 
@@ -241,12 +272,23 @@ export default function UserDocuments() {
             )}
             {sigs.map((sig) => (
               <Paper key={sig.id} variant="outlined" sx={{ p: 1.5, mb: 1, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <Box>
-                  <Typography variant="body2" sx={{ fontWeight: 600 }}>{sig.label}</Typography>
-                  <Typography variant="caption" color="text.secondary">
-                    {sig.signature_text || "(image)"}
-                  </Typography>
-                  {sig.is_default && <Chip size="small" label="default" color="primary" sx={{ ml: 1 }} />}
+                <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
+                  {sig.signature_image ? (
+                    <Box
+                      component="img"
+                      src={sig.signature_image}
+                      alt={sig.label}
+                      sx={{ height: 40, maxWidth: 150, objectFit: "contain", bgcolor: "rgba(0,0,0,0.2)", borderRadius: 1, px: 0.5 }}
+                    />
+                  ) : (
+                    <Typography variant="body2" sx={{ fontFamily: "cursive", fontStyle: "italic" }}>
+                      {sig.signature_text || "(empty)"}
+                    </Typography>
+                  )}
+                  <Box>
+                    <Typography variant="caption" color="text.secondary" sx={{ display: "block" }}>{sig.label}</Typography>
+                    {sig.is_default && <Chip size="small" label="default" color="primary" />}
+                  </Box>
                 </Box>
                 <IconButton size="small" onClick={() => deleteSig(sig.id)}><DeleteIcon fontSize="small" /></IconButton>
               </Paper>
@@ -292,12 +334,72 @@ export default function UserDocuments() {
       <Dialog open={sigDialogOpen} onClose={() => setSigDialogOpen(false)} maxWidth="sm" fullWidth>
         <DialogTitle>Add Signature</DialogTitle>
         <DialogContent>
-          <TextField fullWidth size="small" label="Label" value={sigLabel} onChange={(e) => setSigLabel(e.target.value)} sx={{ mt: 1, mb: 2 }} />
-          <TextField fullWidth multiline minRows={3} label="Signature Text" value={sigText} onChange={(e) => setSigText(e.target.value)} placeholder="Type your name as it should appear on documents" />
+          <TextField fullWidth size="small" label="Label" value={sigLabel} onChange={(e) => setSigLabel(e.target.value)} sx={{ mt: 1, mb: 1 }} />
+          <Tabs value={sigTab} onChange={(_, v) => setSigTab(v)} sx={{ mb: 2 }}>
+            <Tab label="Draw" />
+            <Tab label="Type" />
+          </Tabs>
+          {sigTab === 0 && (
+            <SignaturePad onSignature={setSigImage} existingImage={sigImage || null} />
+          )}
+          {sigTab === 1 && (
+            <TextField fullWidth multiline minRows={3} label="Typed Signature" value={sigText} onChange={(e) => setSigText(e.target.value)} placeholder="Type your name as it should appear on documents" />
+          )}
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setSigDialogOpen(false)}>Cancel</Button>
-          <Button variant="contained" onClick={saveSig}>Save Signature</Button>
+          <Button onClick={() => { setSigDialogOpen(false); setSigImage(""); setSigText(""); setSigTab(0) }}>Cancel</Button>
+          <Button variant="contained" onClick={saveSig} disabled={sigTab === 0 && !sigImage && !sigText}>Save Signature</Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={templateDialogOpen} onClose={() => setTemplateDialogOpen(false)} maxWidth="md" fullWidth>
+        <DialogTitle>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+            <FileTemplateIcon color="primary" />
+            Choose a Template
+          </Box>
+        </DialogTitle>
+        <DialogContent>
+          <Box sx={{ display: "flex", gap: 1, mb: 2, mt: 1, flexWrap: "wrap" }}>
+            {TEMPLATE_CATEGORIES.map((cat) => (
+              <Chip
+                key={cat.id}
+                label={cat.label}
+                onClick={() => setTemplateFilter(cat.id)}
+                color={templateFilter === cat.id ? "primary" : "default"}
+                variant={templateFilter === cat.id ? "filled" : "outlined"}
+                size="small"
+              />
+            ))}
+          </Box>
+          <Grid container spacing={2}>
+            {DOC_TEMPLATES
+              .filter((t) => templateFilter === "all" || t.category === templateFilter)
+              .map((tpl) => (
+                <Grid key={tpl.id} size={{ xs: 12, sm: 6 }}>
+                  <Paper
+                    variant="outlined"
+                    sx={{
+                      p: 2,
+                      cursor: "pointer",
+                      transition: "0.2s",
+                      "&:hover": { borderColor: "primary.main", bgcolor: "rgba(0, 230, 118, 0.04)" },
+                    }}
+                    onClick={() => applyTemplate(tpl)}
+                  >
+                    <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 0.5 }}>
+                      <Chip size="small" label={tpl.category} variant="outlined" sx={{ fontSize: "0.7rem" }} />
+                    </Box>
+                    <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>{tpl.name}</Typography>
+                    <Typography variant="caption" color="text.secondary">{tpl.description}</Typography>
+                  </Paper>
+                </Grid>
+              ))}
+          </Grid>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setTemplateDialogOpen(false)}>Cancel</Button>
+          <Button variant="outlined" onClick={openNewBlankDoc}>Start Blank</Button>
         </DialogActions>
       </Dialog>
     </Container>
