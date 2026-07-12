@@ -8,14 +8,14 @@ interface Props {
 }
 
 export default function AuthGuard({ children, requireAdmin }: Props) {
-  const { token } = useAuth()
+  const { token, isAdmin } = useAuth()
 
   if (!token) {
     return <Navigate to="/login" replace />
   }
 
-  if (requireAdmin) {
-    // Admin check would need a profile fetch; for now allow if token exists
+  if (requireAdmin && !isAdmin) {
+    return <Navigate to="/dashboard" replace />
   }
 
   return <>{children}</>

@@ -63,7 +63,7 @@ interface NavItem {
 const navItems: NavItem[] = [
   { label: "Home", path: "/", icon: <HomeIcon /> },
   { label: "Dashboard", path: "/dashboard", icon: <DashboardIcon />, auth: true },
-  { label: "Subscribe", path: "/dashboard/subscribe", icon: <SubscriptionsIcon />, auth: true },
+  { label: "Subscription", path: "/dashboard/subscription", icon: <SubscriptionsIcon />, auth: true },
   { label: "Run a Node", path: "/nodes", icon: <ComputerIcon /> },
   {
     label: "Admin",

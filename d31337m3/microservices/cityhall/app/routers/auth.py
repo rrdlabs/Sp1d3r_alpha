@@ -43,6 +43,11 @@ class ConfirmEmailRequest(BaseModel):
     email: EmailStr
     token: str
 
+
+class ChangePasswordRequest(BaseModel):
+    current_password: str
+    new_password: str = Field(..., min_length=8, max_length=128)
+
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 OTP_TTL_MINUTES = 10
@@ -422,3 +427,26 @@ async def resend_otp(
 
     email_hint = user.email[:3] + "***" + user.email[user.email.index("@"):]
     return {"status": "sent", "email_hint": email_hint}
+
+
+@router.post("/change-password")
+async def change_password(
+    req: ChangePasswordRequest,
+    request: Request,
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    if not verify_password(req.current_password, user.password_hash):
+        raise HTTPException(status_code=400, detail="Current password is incorrect")
+
+    user.password_hash = hash_password(req.new_password)
+
+    session.add(
+        AuditLog(
+            user_id=user.id,
+            action="password_changed",
+            ip_address=request.client.host if request.client else None,
+        )
+    )
+    await session.flush()
+    return {"status": "password_changed"}

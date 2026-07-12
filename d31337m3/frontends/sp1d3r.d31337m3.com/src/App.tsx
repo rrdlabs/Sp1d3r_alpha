@@ -8,9 +8,11 @@ import AuthGuard from "./components/AuthGuard"
 import Landing from "./pages/Landing"
 import Login from "./pages/Login"
 import Register from "./pages/Register"
+import NotFound from "./pages/NotFound"
 import UserDashboard from "./pages/dashboard/UserDashboard"
 import UserSettings from "./pages/dashboard/UserSettings"
 import SubscriptionOnboarding from "./pages/dashboard/SubscriptionOnboarding"
+import SubscriptionManagement from "./pages/dashboard/SubscriptionManagement"
 import AdminDashboard from "./pages/admin/AdminDashboard"
 import UserManagement from "./pages/admin/UserManagement"
 import ServiceMonitor from "./pages/admin/ServiceMonitor"
@@ -54,20 +56,22 @@ export default function App() {
               <Route path="/dashboard" element={<AuthGuard><UserDashboard /></AuthGuard>} />
               <Route path="/dashboard/settings" element={<AuthGuard><UserSettings /></AuthGuard>} />
               <Route path="/dashboard/subscribe" element={<AuthGuard><SubscriptionOnboarding /></AuthGuard>} />
-              <Route path="/admin" element={<AuthGuard><AdminDashboard /></AuthGuard>} />
-              <Route path="/admin/users" element={<AuthGuard><UserManagement /></AuthGuard>} />
-              <Route path="/admin/services" element={<AuthGuard><ServiceMonitor /></AuthGuard>} />
-              <Route path="/admin/health" element={<AuthGuard><PlatformHealth /></AuthGuard>} />
-              <Route path="/admin/blockchain" element={<AuthGuard><BlockchainDetails /></AuthGuard>} />
-              <Route path="/admin/logs" element={<AuthGuard><LogViewer /></AuthGuard>} />
-              <Route path="/admin/email" element={<AuthGuard><EmailSettings /></AuthGuard>} />
-              <Route path="/admin/network" element={<AuthGuard><NodeManagement /></AuthGuard>} />
-              <Route path="/admin/brokers" element={<AuthGuard><BrokerManagement /></AuthGuard>} />
-              <Route path="/admin/documents" element={<AuthGuard><Documents /></AuthGuard>} />
-              <Route path="/admin/pricing" element={<AuthGuard><PricingTiers /></AuthGuard>} />
-              <Route path="/admin/payments" element={<AuthGuard><PaymentProcessing /></AuthGuard>} />
+              <Route path="/dashboard/subscription" element={<AuthGuard><SubscriptionManagement /></AuthGuard>} />
+              <Route path="/admin" element={<AuthGuard requireAdmin><AdminDashboard /></AuthGuard>} />
+              <Route path="/admin/users" element={<AuthGuard requireAdmin><UserManagement /></AuthGuard>} />
+              <Route path="/admin/services" element={<AuthGuard requireAdmin><ServiceMonitor /></AuthGuard>} />
+              <Route path="/admin/health" element={<AuthGuard requireAdmin><PlatformHealth /></AuthGuard>} />
+              <Route path="/admin/blockchain" element={<AuthGuard requireAdmin><BlockchainDetails /></AuthGuard>} />
+              <Route path="/admin/logs" element={<AuthGuard requireAdmin><LogViewer /></AuthGuard>} />
+              <Route path="/admin/email" element={<AuthGuard requireAdmin><EmailSettings /></AuthGuard>} />
+              <Route path="/admin/network" element={<AuthGuard requireAdmin><NodeManagement /></AuthGuard>} />
+              <Route path="/admin/brokers" element={<AuthGuard requireAdmin><BrokerManagement /></AuthGuard>} />
+              <Route path="/admin/documents" element={<AuthGuard requireAdmin><Documents /></AuthGuard>} />
+              <Route path="/admin/pricing" element={<AuthGuard requireAdmin><PricingTiers /></AuthGuard>} />
+              <Route path="/admin/payments" element={<AuthGuard requireAdmin><PaymentProcessing /></AuthGuard>} />
               <Route path="/support" element={<AuthGuard><SupportChat /></AuthGuard>} />
               <Route path="/nodes" element={<NodeInfo />} />
+              <Route path="*" element={<NotFound />} />
             </Route>
           </Routes>
         </AuthProvider>
