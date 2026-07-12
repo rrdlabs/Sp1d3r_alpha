@@ -45,6 +45,7 @@ import {
   decryptFinding,
 } from "../utils/crypto"
 import SuperSearchLearnMore from "./SuperSearchLearnMore"
+import ProfileCompletion from "./ProfileCompletion"
 
 
 interface SearchResult {
@@ -304,6 +305,7 @@ export default function SearchPanel({ hasActiveSub = true, trialUsed = false, se
 
   return (
     <Container maxWidth="lg">
+      <ProfileCompletion />
       <Paper sx={{ p: 3, mb: 3 }} variant="outlined">
         <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 1 }}>
           <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>

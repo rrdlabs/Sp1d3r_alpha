@@ -32,6 +32,7 @@ import { apiRequest } from "../../api/client"
 import { useAuth } from "../../context/AuthContext"
 import SearchPanel from "../../components/SearchPanel"
 import ReputationWidget from "../../components/ReputationWidget"
+import ProfileCompletion from "../../components/ProfileCompletion"
 
 interface ChainState {
   blocks: number
@@ -115,6 +116,8 @@ export default function UserDashboard() {
       <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
         Monitor your reputation, run crawls, and view chain status.
       </Typography>
+
+      <ProfileCompletion />
 
       <Grid container spacing={2} sx={{ mb: 3 }}>
         <Grid size={{ xs: 12, sm: 6, md: 3 }}>

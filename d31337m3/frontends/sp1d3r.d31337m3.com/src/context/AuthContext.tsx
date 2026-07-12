@@ -21,6 +21,14 @@ interface User {
   email: string
   avatar_url: string | null
   bio: string
+  phone: string | null
+  address_line1: string | null
+  address_line2: string | null
+  city: string | null
+  state: string | null
+  zip_code: string | null
+  country: string | null
+  ssn_last4: string | null
   is_nodeop: boolean
   is_tech_op: boolean
   is_chat_op: boolean

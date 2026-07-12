@@ -27,6 +27,7 @@ import DeleteIcon from "@mui/icons-material/Delete"
 import OpenInNewIcon from "@mui/icons-material/OpenInNew"
 import MarkEmailReadIcon from "@mui/icons-material/MarkEmailRead"
 import { apiRequest } from "../../api/client"
+import ProfileCompletion from "../../components/ProfileCompletion"
 
 interface Keyword {
   id: string
@@ -120,6 +121,8 @@ export default function UserKeywords() {
       <Alert severity="info" sx={{ mb: 3 }}>
         Keywords are scanned by Sp1d3r crawlers. Results appear here and can optionally be sent to your email.
       </Alert>
+
+      <ProfileCompletion />
 
       <Paper variant="outlined" sx={{ p: 2, mb: 3 }}>
         <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2 }}>

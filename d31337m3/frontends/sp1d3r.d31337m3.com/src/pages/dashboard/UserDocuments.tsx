@@ -85,17 +85,22 @@ export default function UserDocuments() {
   const fillTemplate = (text: string) => {
     const now = new Date()
     const fullName = user ? `${user.first_name} ${user.last_name}` : ""
+    const fullAddress = user
+      ? [user.address_line1, user.address_line2, user.city, user.state, user.zip_code, user.country]
+          .filter(Boolean)
+          .join(", ")
+      : ""
     return text
       .replace(/\[YOUR NAME\]/g, fullName)
       .replace(/\[YOUR EMAIL\]/g, user?.email || "")
+      .replace(/\[YOUR PHONE\]/g, user?.phone || "")
+      .replace(/\[YOUR ADDRESS\]/g, fullAddress || "[Your Address]")
+      .replace(/\[YOUR USERNAME\]/g, user?.username || "")
       .replace(/\[DATE\]/g, now.toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" }))
       .replace(/\[RECIPIENT NAME\]/g, "[Recipient Name]")
       .replace(/\[RECIPIENT ADDRESS\]/g, "[Recipient Address]")
       .replace(/\[COMPANY ADDRESS\]/g, "[Company Address]")
       .replace(/\[SERVICE PROVIDER \/ HOSTING COMPANY\]/g, "[Service Provider]")
-      .replace(/\[YOUR ADDRESS\]/g, "[Your Address]")
-      .replace(/\[YOUR PHONE\]/g, "[Your Phone]")
-      .replace(/\[YOUR USERNAME\]/g, user?.username || "")
       .replace(/\[ACCOUNT NAME IF APPLICABLE\]/g, "")
       .replace(/\[ACCOUNT NUMBER\]/g, "[Account Number]")
       .replace(/\[WORK TITLE\]/g, "[Work Title]")
@@ -103,8 +108,8 @@ export default function UserDocuments() {
       .replace(/\[DESCRIBE (?:CONDUCT|STATEMENTS|INACCURATE ITEMS)\]/g, "[Describe here]")
       .replace(/\[EXPLAIN WHY EACH ITEM IS INACCURATE\]/g, "[Explain here]")
       .replace(/\[CITE SPECIFIC STATUTES\]/g, "[Cite applicable statutes]")
-      .replace(/\[LAST 4 SSN\]/g, "[Last 4 SSN]")
-      .replace(/\[DOB\]/g, "[Date of Birth]")
+      .replace(/\[LAST 4 SSN\]/g, user?.ssn_last4 || "[Last 4 SSN]")
+      .replace(/\[DOB\]/g, (user as any)?.dob || "[Date of Birth]")
       .replace(/\[PREVIOUS ADDRESS\]/g, "[Previous Address if applicable]")
   }
   const [docDialogOpen, setDocDialogOpen] = useState(false)
