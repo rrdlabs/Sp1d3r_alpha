@@ -30,6 +30,7 @@ from d31337m3_crawler import CrawlerWorker, FindingStore, WorkerConfig
 
 from task_queue import TaskQueue
 from search_store import SearchStore
+from search_engines import aggregate_search
 
 
 class CORSMixin:
@@ -154,6 +155,27 @@ def _mark_trial_used(user_id: str) -> None:
             pass
     except Exception:
         pass
+
+
+def _check_subscription_only(user_id: str) -> dict:
+    try:
+        sub_req = urllib.request.Request(
+            f"{BANKER_URL}/subscription-status?user_id={user_id}",
+            headers={"X-Internal-Key": INTERNAL_API_KEY},
+        )
+        with urllib.request.urlopen(sub_req, timeout=5) as resp:
+            sub_data = json.loads(resp.read().decode())
+        if sub_data.get("has_active_sub"):
+            return {"allowed": True, "reason": "active_subscription"}
+        if sub_data.get("is_nodeop"):
+            return {"allowed": True, "reason": "node_operator"}
+    except Exception:
+        pass
+    return {
+        "allowed": False,
+        "reason": "subscription_required",
+        "redirect": "/paywall",
+    }
 
 
 def _sync_from_seed(seed_url: str) -> bool:
@@ -549,6 +571,107 @@ class Sp1d3rHandler(CORSMixin, BaseHTTPRequestHandler):
                 "searches_remaining": auth_result.get("searches_remaining"),
             }
             self._send(201, response)
+            return
+
+        if path == "/v1/super_search":
+            payload = self._read_json()
+            query = payload.get("query", "")
+            recipient_pubkey_hex = payload.get("recipient_pubkey", "")
+            if not query:
+                self._send(400, {"error": "query_required"})
+                return
+            if not recipient_pubkey_hex:
+                self._send(400, {"error": "recipient_pubkey_required"})
+                return
+
+            user_info = _verify_user_from_request(self)
+            if not user_info or not user_info.get("id"):
+                self._send(401, {"error": "authentication_required", "redirect": "/login"})
+                return
+
+            auth_result = _check_subscription_only(user_info["id"])
+            if not auth_result.get("allowed"):
+                self._send(403, {
+                    "error": auth_result.get("reason", "forbidden"),
+                    "redirect": auth_result.get("redirect", "/paywall"),
+                })
+                return
+
+            search = search_store.create_super_search(query, recipient_pubkey_hex, {
+                "engines": ["google", "bing", "duckduckgo"],
+                "user_id": user_info["id"],
+            })
+
+            try:
+                aggregated = aggregate_search(query, top_n=20)
+                engines_used = aggregated.get("engines_used", [])
+                engine_counts = aggregated.get("engine_counts", {})
+                search_results = aggregated.get("results", [])
+
+                recipient_pubkey = bytes.fromhex(recipient_pubkey_hex)
+                encrypted_results: list[dict[str, Any]] = []
+
+                for result in search_results:
+                    try:
+                        result_bytes = json.dumps(result, separators=(",", ":")).encode("utf-8")
+                        finding = worker.encrypt_payload(result_bytes, recipient_pubkey)
+                        tx = TransactionHeader.create(
+                            PAYLOAD_COMMIT,
+                            identity,
+                            finding.payload_hash,
+                            finding.merkle_root,
+                        )
+                        chain.submit(tx)
+                        store.save(finding, metadata={
+                            "url": result.get("url", ""),
+                            "source": "super_search",
+                            "query": query,
+                            "fetched_at": time.time(),
+                        })
+                        encrypted_results.append({
+                            "rank": result.get("rank"),
+                            "title": result.get("title", ""),
+                            "url": result.get("url", ""),
+                            "source_engines": result.get("source_engines", []),
+                            "score": result.get("score", 0),
+                            "payload_hash": finding.payload_hash.hex(),
+                            "merkle_root": finding.merkle_root.hex(),
+                            "ephemeral_public_key": finding.ephemeral_public_key.hex(),
+                            "nonce": finding.nonce.hex(),
+                            "ciphertext": finding.ciphertext.hex(),
+                        })
+                    except Exception as exc:
+                        search_store.add_failure(search.id, {
+                            "url": result.get("url", ""),
+                            "error": str(exc),
+                        })
+
+                search_store.add_super_result(search.id, {
+                    "results": encrypted_results,
+                    "total_raw": aggregated.get("total_raw", 0),
+                    "engines_used": engines_used,
+                    "engine_counts": engine_counts,
+                })
+
+                print(
+                    f"[super_search] query='{query}' results={len(encrypted_results)} "
+                    f"engines={engines_used} user={user_info.get('username', 'unknown')}",
+                    flush=True,
+                )
+
+                response = search_store.get(search.id)
+                self._send(201, {
+                    "search_id": search.id,
+                    "status": "completed",
+                    "query": query,
+                    "results": response.results if response else [],
+                    "created_at": search.created_at,
+                    "completed_at": time.time(),
+                })
+            except Exception as exc:
+                search_store.add_failure(search.id, {"error": str(exc)})
+                print(f"[super_search] FAILED query='{query}' error={exc}", flush=True)
+                self._send(500, {"error": "super_search_failed", "detail": str(exc)})
             return
 
         self._send(404, {"error": "not_found"})

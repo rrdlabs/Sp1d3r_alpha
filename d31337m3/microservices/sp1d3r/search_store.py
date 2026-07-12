@@ -23,9 +23,11 @@ class SearchQuery:
     urls: list[str] = field(default_factory=list)
     recipient_pubkey: str = ""
     status: str = "pending"
+    search_type: str = "crawl"
     task_ids: list[str] = field(default_factory=list)
     results: list[dict] = field(default_factory=list)
     failures: list[dict] = field(default_factory=list)
+    metadata: dict = field(default_factory=dict)
     created_at: float = field(default_factory=time.time)
     completed_at: float | None = None
 
@@ -50,6 +52,21 @@ class SearchStore:
                 query=query,
                 urls=urls,
                 recipient_pubkey=recipient_pubkey,
+                search_type="crawl",
+            )
+            self._searches[search.id] = search
+            self._save()
+            return search
+
+    def create_super_search(self, query: str, recipient_pubkey: str, metadata: dict | None = None) -> SearchQuery:
+        with self._lock:
+            search = SearchQuery(
+                query=query,
+                urls=[],
+                recipient_pubkey=recipient_pubkey,
+                search_type="super_search",
+                status="pending",
+                metadata=metadata or {},
             )
             self._searches[search.id] = search
             self._save()
@@ -86,6 +103,15 @@ class SearchStore:
             search = self._searches.get(search_id)
             if search:
                 search.failures.append(failure)
+                self._save()
+
+    def add_super_result(self, search_id: str, result: dict) -> None:
+        with self._lock:
+            search = self._searches.get(search_id)
+            if search:
+                search.results.append(result)
+                search.status = "completed"
+                search.completed_at = time.time()
                 self._save()
 
     def complete(self, search_id: str) -> SearchQuery | None:

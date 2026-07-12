@@ -9,7 +9,9 @@ import {
   DialogActions,
   DialogContent,
   DialogTitle,
+  FormControlLabel,
   Paper,
+  Switch,
   Table,
   TableBody,
   TableCell,
@@ -24,6 +26,7 @@ import {
   Link,
 } from "@mui/material"
 import SearchIcon from "@mui/icons-material/Search"
+import AutoAwesomeIcon from "@mui/icons-material/AutoAwesome"
 import RefreshIcon from "@mui/icons-material/Refresh"
 import LockIcon from "@mui/icons-material/Lock"
 import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined"
@@ -41,6 +44,7 @@ import {
   getStoredPublicKeyHex,
   decryptFinding,
 } from "../utils/crypto"
+import SuperSearchLearnMore from "./SuperSearchLearnMore"
 
 
 interface SearchResult {
@@ -50,6 +54,28 @@ interface SearchResult {
   ephemeral_public_key: string
   nonce: string
   ciphertext: string
+}
+
+interface SuperSearchResultItem {
+  rank: number
+  title: string
+  url: string
+  source_engines: string[]
+  score: number
+  payload_hash: string
+  merkle_root: string
+  ephemeral_public_key: string
+  nonce: string
+  ciphertext: string
+}
+
+interface SuperSearchResponse {
+  search_id: string
+  status: string
+  query: string
+  results: SuperSearchResultItem[]
+  created_at: number
+  completed_at: number | null
 }
 
 interface SearchQuery {
@@ -74,6 +100,7 @@ interface SearchPanelProps {
 
 export default function SearchPanel({ hasActiveSub = true, trialUsed = false, searchesRemaining: _searchesRemaining, onTrialExhausted }: SearchPanelProps) {
   const [urls, setUrls] = useState("")
+  const [query, setQuery] = useState("")
   const [pubKey, setPubKey] = useState("")
   const [searching, setSearching] = useState(false)
   const [currentSearch, setCurrentSearch] = useState<SearchQuery | null>(null)
@@ -83,6 +110,10 @@ export default function SearchPanel({ hasActiveSub = true, trialUsed = false, se
   const [error, setError] = useState("")
   const [keyReady, setKeyReady] = useState(false)
   const [learnMoreOpen, setLearnMoreOpen] = useState(false)
+  const [superSearchMode, setSuperSearchMode] = useState(false)
+  const [superSearchLearnMoreOpen, setSuperSearchLearnMoreOpen] = useState(false)
+  const [superSearchResults, setSuperSearchResults] = useState<SuperSearchResultItem[]>([])
+  const [superDecryptedResults, setSuperDecryptedResults] = useState<Map<string, string>>(new Map())
 
   useEffect(() => {
     const init = async () => {
@@ -210,6 +241,63 @@ export default function SearchPanel({ hasActiveSub = true, trialUsed = false, se
     }
   }
 
+  const handleSuperSearch = async () => {
+    if (!query.trim()) return
+    setSearching(true)
+    setError("")
+    setSuperSearchResults([])
+    setSuperDecryptedResults(new Map())
+
+    const token = localStorage.getItem("sp1d3r_token")
+    const res = await apiRequest<SuperSearchResponse>("sp1d3r", "POST", "/v1/super_search", {
+      query: query.trim(),
+      recipient_pubkey: pubKey,
+    }, token ? { "Authorization": `Bearer ${token}` } : undefined)
+
+    if (res.ok) {
+      setSuperSearchResults(res.data.results || [])
+      if (res.data.results?.length > 0) {
+        await decryptSuperResults(res.data.results)
+      }
+    } else if (res.status === 403) {
+      const data = res.data as any
+      if (data?.redirect === "/paywall") {
+        setError("Super Search requires an active subscription.")
+      } else {
+        setError(data?.error || "Super search forbidden")
+      }
+    } else if (res.status === 401) {
+      setError("Please sign in to use Super Search.")
+    } else {
+      setError("Super search request failed")
+    }
+    setSearching(false)
+  }
+
+  const decryptSuperResults = async (results: SuperSearchResultItem[]) => {
+    setDecrypting(true)
+    try {
+      const { privateKey } = await loadOrGenerateKeypair()
+      const decrypted = new Map<string, string>()
+      for (const result of results) {
+        try {
+          const plaintext = await decryptFinding(
+            privateKey,
+            result.ephemeral_public_key,
+            result.nonce,
+            result.ciphertext
+          )
+          decrypted.set(result.url, plaintext)
+        } catch {
+          decrypted.set(result.url, "[decryption failed]")
+        }
+      }
+      setSuperDecryptedResults(decrypted)
+    } finally {
+      setDecrypting(false)
+    }
+  }
+
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text)
   }
@@ -220,42 +308,109 @@ export default function SearchPanel({ hasActiveSub = true, trialUsed = false, se
   return (
     <Container maxWidth="lg">
       <Paper sx={{ p: 3, mb: 3 }} variant="outlined">
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1 }}>
-          <SearchIcon color="primary" />
-          <Typography variant="h6" sx={{ fontFamily: "monospace", fontWeight: 700 }}>
-            Encrypted Search
-          </Typography>
-          <Chip
-            icon={<LockIcon />}
-            label="E2E Encrypted"
-            color="success"
-            size="small"
-            sx={{ ml: 1 }}
-          />
+        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 1 }}>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+            {superSearchMode ? (
+              <AutoAwesomeIcon color="primary" />
+            ) : (
+              <SearchIcon color="primary" />
+            )}
+            <Typography variant="h6" sx={{ fontFamily: "monospace", fontWeight: 700 }}>
+              {superSearchMode ? "Super Search" : "Encrypted Search"}
+            </Typography>
+            <Chip
+              icon={<LockIcon />}
+              label="E2E Encrypted"
+              color="success"
+              size="small"
+              sx={{ ml: 1 }}
+            />
+            {superSearchMode && (
+              <Chip
+                icon={<AutoAwesomeIcon />}
+                label="Multi-Engine"
+                color="primary"
+                size="small"
+              />
+            )}
+          </Box>
+          {hasActiveSub && (
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={superSearchMode}
+                  onChange={(e) => {
+                    setSuperSearchMode(e.target.checked)
+                    setError("")
+                    setSuperSearchResults([])
+                    setSuperDecryptedResults(new Map())
+                  }}
+                  color="primary"
+                />
+              }
+              label={
+                <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                  <Typography variant="body2" sx={{ fontWeight: 700 }}>Super</Typography>
+                  <Tooltip title="Learn more about Super Search">
+                    <IconButton size="small" onClick={() => setSuperSearchLearnMoreOpen(true)}>
+                      <InfoOutlinedIcon fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
+                </Box>
+              }
+            />
+          )}
         </Box>
         <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 2 }}>
           <Typography variant="body2" color="text.secondary">
-            Powered by <strong>Sp1d3r</strong> — Decentralized Private Search Engine
+            {superSearchMode
+              ? "Query Google, Bing & DuckDuckGo simultaneously — results encrypted and combined."
+              : "Powered by "}
+            {!superSearchMode && <strong>Sp1d3r</strong>}
+            {!superSearchMode && " — Decentralized Private Search Engine"}
           </Typography>
-          <Tooltip title="Learn more about Sp1d3r">
-            <IconButton size="small" onClick={() => setLearnMoreOpen(true)}>
-              <InfoOutlinedIcon fontSize="small" />
-            </IconButton>
-          </Tooltip>
+          {!superSearchMode && (
+            <Tooltip title="Learn more about Sp1d3r">
+              <IconButton size="small" onClick={() => setLearnMoreOpen(true)}>
+                <InfoOutlinedIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+          )}
         </Box>
-        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-          Submit URLs to crawl. Results are encrypted with your X25519 public key and can only be decrypted by you.
-        </Typography>
-        <TextField
-          fullWidth
-          multiline
-          rows={3}
-          label="URLs (one per line)"
-          value={urls}
-          onChange={(e) => setUrls(e.target.value)}
-          sx={{ mb: 2 }}
-          placeholder={"https://example.com\nhttps://example.org"}
-        />
+
+        {superSearchMode ? (
+          <>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+              Enter a search query. Results from multiple search engines are aggregated, deduplicated, and ranked by cross-engine consensus.
+            </Typography>
+            <TextField
+              fullWidth
+              label="Search Query"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              sx={{ mb: 2 }}
+              placeholder="e.g. privacy laws 2026"
+              onKeyDown={(e) => { if (e.key === "Enter" && !searching && query.trim()) handleSuperSearch() }}
+            />
+          </>
+        ) : (
+          <>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+              Submit URLs to crawl. Results are encrypted with your X25519 public key and can only be decrypted by you.
+            </Typography>
+            <TextField
+              fullWidth
+              multiline
+              rows={3}
+              label="URLs (one per line)"
+              value={urls}
+              onChange={(e) => setUrls(e.target.value)}
+              sx={{ mb: 2 }}
+              placeholder={"https://example.com\nhttps://example.org"}
+            />
+          </>
+        )}
+
         <TextField
           fullWidth
           label="Your X25519 Public Key (hex)"
@@ -266,16 +421,100 @@ export default function SearchPanel({ hasActiveSub = true, trialUsed = false, se
         />
         <Button
           variant="contained"
-          onClick={handleSearch}
-          disabled={searching || !urls.trim() || !keyReady}
-          startIcon={searching ? <CircularProgress size={16} /> : <SearchIcon />}
+          onClick={superSearchMode ? handleSuperSearch : handleSearch}
+          disabled={searching || !keyReady || (superSearchMode ? !query.trim() : !urls.trim())}
+          startIcon={searching ? <CircularProgress size={16} /> : (superSearchMode ? <AutoAwesomeIcon /> : <SearchIcon />)}
         >
-          {searching ? "Searching..." : "Start Encrypted Search"}
+          {searching
+            ? (superSearchMode ? "Searching engines..." : "Searching...")
+            : (superSearchMode ? "Super Search" : "Start Encrypted Search")}
         </Button>
         {error && <Alert severity="error" sx={{ mt: 2 }}>{error}</Alert>}
       </Paper>
 
-      {currentSearch && (
+      {superSearchMode && superSearchResults.length > 0 && (
+        <Paper sx={{ p: 3, mb: 3 }} variant="outlined">
+          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 2 }}>
+            <Typography variant="h6" sx={{ fontFamily: "monospace" }}>
+              Super Search Results
+            </Typography>
+            <Chip
+              icon={<CheckCircleIcon />}
+              label={`${superSearchResults.length} results`}
+              color="success"
+            />
+          </Box>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            Query: &quot;{query}&quot; — Ranked by cross-engine consensus
+          </Typography>
+
+          {decrypting && (
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 2 }}>
+              <CircularProgress size={16} />
+              <Typography variant="body2">Decrypting results...</Typography>
+            </Box>
+          )}
+
+          <TableContainer>
+            <Table size="small">
+              <TableHead>
+                <TableRow>
+                  <TableCell sx={{ width: 40 }}>#</TableCell>
+                  <TableCell>Title</TableCell>
+                  <TableCell>URL</TableCell>
+                  <TableCell>Engines</TableCell>
+                  <TableCell>Score</TableCell>
+                  <TableCell>Preview</TableCell>
+                  <TableCell>Actions</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {superSearchResults.map((r) => (
+                  <TableRow key={r.url}>
+                    <TableCell>
+                      <Chip size="small" label={r.rank} color="primary" variant="outlined" />
+                    </TableCell>
+                    <TableCell sx={{ fontWeight: 700, maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {truncate(r.title, 40)}
+                    </TableCell>
+                    <TableCell sx={{ fontFamily: "monospace", fontSize: "0.75rem", maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {truncate(r.url, 40)}
+                    </TableCell>
+                    <TableCell>
+                      <Box sx={{ display: "flex", gap: 0.5, flexWrap: "wrap" }}>
+                        {r.source_engines.map((eng) => (
+                          <Chip key={eng} size="small" label={eng} variant="outlined" color="secondary" />
+                        ))}
+                      </Box>
+                    </TableCell>
+                    <TableCell sx={{ fontFamily: "monospace", fontSize: "0.75rem" }}>
+                      {r.score}
+                    </TableCell>
+                    <TableCell sx={{ maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {decrypting ? (
+                        <CircularProgress size={12} />
+                      ) : (
+                        truncate(superDecryptedResults.get(r.url) || "[encrypted]", 40)
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {superDecryptedResults.get(r.url) && (
+                        <Tooltip title="Copy decrypted content">
+                          <IconButton size="small" onClick={() => copyToClipboard(superDecryptedResults.get(r.url) || "")}>
+                            <ContentCopyIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        </Paper>
+      )}
+
+      {!superSearchMode && currentSearch && (
         <Paper sx={{ p: 3, mb: 3 }} variant="outlined">
           <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 2 }}>
             <Typography variant="h6" sx={{ fontFamily: "monospace" }}>
@@ -367,7 +606,7 @@ export default function SearchPanel({ hasActiveSub = true, trialUsed = false, se
         </Paper>
       )}
 
-      {searchHistory.length > 0 && (
+      {!superSearchMode && searchHistory.length > 0 && (
         <Paper sx={{ p: 3 }} variant="outlined">
           <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 2 }}>
             <Typography variant="h6" sx={{ fontFamily: "monospace" }}>
@@ -485,6 +724,8 @@ export default function SearchPanel({ hasActiveSub = true, trialUsed = false, se
           </Button>
         </DialogActions>
       </Dialog>
+
+      <SuperSearchLearnMore open={superSearchLearnMoreOpen} onClose={() => setSuperSearchLearnMoreOpen(false)} />
     </Container>
   )
 }

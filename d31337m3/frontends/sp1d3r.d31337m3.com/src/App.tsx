@@ -28,6 +28,7 @@ import PaymentProcessing from "./pages/admin/PaymentProcessing"
 import SupportChat from "./pages/support/SupportChat"
 import NodeInfo from "./pages/NodeInfo"
 import Paywall from "./pages/Paywall"
+import Marketing from "./pages/Marketing"
 
 export default function App() {
   const [isDark, setIsDark] = useState(() => {
@@ -73,6 +74,7 @@ export default function App() {
               <Route path="/support" element={<AuthGuard><SupportChat /></AuthGuard>} />
               <Route path="/paywall" element={<AuthGuard><Paywall /></AuthGuard>} />
               <Route path="/nodes" element={<NodeInfo />} />
+              <Route path="/marketing" element={<Marketing />} />
               <Route path="*" element={<NotFound />} />
             </Route>
           </Routes>

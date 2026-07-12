@@ -12,6 +12,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 ### Project
 - **D31337m3 rebrand**: Platform is now "D31337m3 — The Decentralized Privacy Management & Crawling Search Platform". Sp1d3r is the decentralized search engine powering the platform. Admin pages retain Sp1d3r centralized theme.
 - **Trial mode**: New users get 1 free search per day for 7 days (7 total) without a subscription. After trial exhaustion, users are directed to a paywall page.
+- **Super Search**: Encrypted meta-search engine aggregating results from Google, Bing, and DuckDuckGo. Subscriber-only feature. Results deduplicated, ranked by cross-engine consensus, encrypted with X25519+AES-256-GCM, committed to blockchain.
+- **Marketing page** (`/marketing`): Public marketing page for ad campaigns. Features, value proposition, pricing, and CTAs.
 - **Paywall page** (`/paywall`): Full-featured page showing platform capabilities, pricing tiers, node operator offer, grandfathering notice, and 72-hour connectivity rule.
 - **Node connectivity enforcement**: Banker auto-suspends nodeop_free subscriptions when node goes offline >72 hours. Reactivates when node comes back online.
 - **Footer branding**: "D31337m3.com — Powered by Sp1d3r Decentralized Private Search Engine — a WEB3 Service by RRDLabs" with link to rrdlabs.online.
@@ -23,10 +25,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - **Config**: Added `director_url` and `internal_api_key` settings.
 - **Schemas**: `UserPublic` now includes `trial_searches_used`, `trial_started_at`, `node_pubkey`.
 
-### sp1d3r (v0.5.0 → v0.6.0)
+### sp1d3r (v0.5.0 → v0.6.0 → v0.7.0)
 - **Search authorization gating**: `POST /v1/search` now requires JWT authentication (`Authorization: Bearer <token>`). Checks subscription status, node operator status, and trial availability before allowing search.
 - **Config**: Added `CITYHALL_URL`, `BANKER_URL`, `INTERNAL_API_KEY` env vars.
 - **Trial enforcement**: Backend checks trial status via CityHall internal endpoints. Marks trial used on successful search. Returns 403 with redirect to `/paywall` when trial exhausted.
+- **Super Search** (`POST /v1/super_search`): Encrypted meta-search engine. Aggregates results from Google Custom Search API, Bing Web Search API, and DuckDuckGo Instant Answer API. Deduplicates by URL, ranks by cross-engine frequency and position, encrypts top 20 results with user's X25519 public key, commits to blockchain. Subscription-only (no trial).
+- **Search engine aggregator** (`search_engines.py`): New module for parallel multi-engine search. Supports Google, Bing, DuckDuckGo with configurable API keys via `GOOGLE_API_KEY`, `GOOGLE_CX`, `BING_API_KEY`, `DDG_ENABLED` env vars.
+- **Search store**: Added `search_type` field ("crawl" vs "super_search"), `metadata` dict, and `create_super_search()` / `add_super_result()` methods.
+- **Subscription-only auth**: New `_check_subscription_only()` function for features that require active subscription (no trial fallback).
 
 ### banker
 - **Node health check**: `/subscription-status` now checks Director for node online status. Auto-suspends `nodeop_free` subscriptions when node is offline >72 hours.
@@ -38,6 +44,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Frontend
 - **Platform branding**: D31337m3 as platform name, Sp1d3r as search engine. Updated index.html title, Layout AppBar/sidebar, Landing hero and footer, Login page.
+- **Super Search toggle**: SearchPanel now has a switch to toggle between regular Encrypted Search (URL crawling) and Super Search (multi-engine meta-search). Subscribers-only feature with "Learn More" upsell dialog.
+- **Super Search Learn More dialog**: Full-featured upsell component explaining multi-engine aggregation, cross-engine deduplication, intelligent ranking, E2E encryption, blockchain verification, and parallel execution. Includes "Subscribe Now" CTA.
+- **Marketing page** (`/marketing`): Standalone public marketing page for ad campaigns. Problem/solution sections, 6 feature cards, statistics, Super Search showcase, encryption CTA, pricing, and final CTA. Accessible without authentication.
+- **App routes**: Added `/marketing` public route.
 - **SearchPanel**: "Powered by Sp1d3r" label with Info button opening Learn More dialog explaining Sp1d3r's capabilities (decentralized crawling, E2E encryption, blockchain verification, P2P network, zero knowledge, open & auditable).
 - **SearchPanel trial gating**: Accepts `hasActiveSub`, `trialUsed`, `searchesRemaining` props. Sends JWT with search requests. Shows trial status and handles 403 responses.
 - **UserDashboard**: Trial status banner, subscription suspension warning, SearchPanel integration with trial props.
