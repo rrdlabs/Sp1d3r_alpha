@@ -34,6 +34,7 @@ import EditIcon from "@mui/icons-material/Edit"
 import FileTemplateIcon from "@mui/icons-material/Description"
 import SignaturePad from "../../components/SignaturePad"
 import { DOC_TEMPLATES, TEMPLATE_CATEGORIES, type DocTemplate } from "../../data/docTemplates"
+import { useAuth } from "../../context/AuthContext"
 import { apiRequest } from "../../api/client"
 
 interface Signature {
@@ -76,9 +77,36 @@ const STATUS_COLORS: Record<string, "default" | "warning" | "success" | "info" |
 }
 
 export default function UserDocuments() {
+  const { user } = useAuth()
   const [docs, setDocs] = useState<Document[]>([])
   const [sigs, setSigs] = useState<Signature[]>([])
   const [loading, setLoading] = useState(true)
+
+  const fillTemplate = (text: string) => {
+    const now = new Date()
+    const fullName = user ? `${user.first_name} ${user.last_name}` : ""
+    return text
+      .replace(/\[YOUR NAME\]/g, fullName)
+      .replace(/\[YOUR EMAIL\]/g, user?.email || "")
+      .replace(/\[DATE\]/g, now.toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" }))
+      .replace(/\[RECIPIENT NAME\]/g, "[Recipient Name]")
+      .replace(/\[RECIPIENT ADDRESS\]/g, "[Recipient Address]")
+      .replace(/\[COMPANY ADDRESS\]/g, "[Company Address]")
+      .replace(/\[SERVICE PROVIDER \/ HOSTING COMPANY\]/g, "[Service Provider]")
+      .replace(/\[YOUR ADDRESS\]/g, "[Your Address]")
+      .replace(/\[YOUR PHONE\]/g, "[Your Phone]")
+      .replace(/\[YOUR USERNAME\]/g, user?.username || "")
+      .replace(/\[ACCOUNT NAME IF APPLICABLE\]/g, "")
+      .replace(/\[ACCOUNT NUMBER\]/g, "[Account Number]")
+      .replace(/\[WORK TITLE\]/g, "[Work Title]")
+      .replace(/\[URL\(S\) OF INFRINGING CONTENT\]/g, "[URLs]")
+      .replace(/\[DESCRIBE (?:CONDUCT|STATEMENTS|INACCURATE ITEMS)\]/g, "[Describe here]")
+      .replace(/\[EXPLAIN WHY EACH ITEM IS INACCURATE\]/g, "[Explain here]")
+      .replace(/\[CITE SPECIFIC STATUTES\]/g, "[Cite applicable statutes]")
+      .replace(/\[LAST 4 SSN\]/g, "[Last 4 SSN]")
+      .replace(/\[DOB\]/g, "[Date of Birth]")
+      .replace(/\[PREVIOUS ADDRESS\]/g, "[Previous Address if applicable]")
+  }
   const [docDialogOpen, setDocDialogOpen] = useState(false)
   const [sigDialogOpen, setSigDialogOpen] = useState(false)
   const [templateDialogOpen, setTemplateDialogOpen] = useState(false)
@@ -117,7 +145,7 @@ export default function UserDocuments() {
     setEditDoc(null)
     setDocType(tpl.doc_type)
     setTitle(tpl.name)
-    setContent(tpl.content)
+    setContent(fillTemplate(tpl.content))
     setRecipientEmail("")
     setRecipientAddress("")
     setTemplateDialogOpen(false)
