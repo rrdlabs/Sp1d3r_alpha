@@ -12,6 +12,7 @@ import UserDashboard from "./pages/dashboard/UserDashboard"
 import UserSettings from "./pages/dashboard/UserSettings"
 import UserDocuments from "./pages/dashboard/UserDocuments"
 import UserKeywords from "./pages/dashboard/UserKeywords"
+import NodeDashboard from "./pages/dashboard/NodeDashboard"
 import SubscriptionOnboarding from "./pages/dashboard/SubscriptionOnboarding"
 import SubscriptionManagement from "./pages/dashboard/SubscriptionManagement"
 import Paywall from "./pages/Paywall"
@@ -37,6 +38,7 @@ export default function App() {
               <Route path="/dashboard/settings" element={<AuthGuard><UserSettings /></AuthGuard>} />
               <Route path="/dashboard/documents" element={<AuthGuard><UserDocuments /></AuthGuard>} />
               <Route path="/dashboard/keywords" element={<AuthGuard><UserKeywords /></AuthGuard>} />
+              <Route path="/dashboard/nodes" element={<AuthGuard><NodeDashboard /></AuthGuard>} />
               <Route path="/dashboard/subscribe" element={<AuthGuard><SubscriptionOnboarding /></AuthGuard>} />
               <Route path="/dashboard/subscription" element={<AuthGuard><SubscriptionManagement /></AuthGuard>} />
               <Route path="/paywall" element={<AuthGuard><Paywall /></AuthGuard>} />

@@ -1,0 +1,300 @@
+openapi: 3.0.3
+info:
+  title: Sp1d3r API
+  description: |
+    D31337m3 Sp1d3r search engine and blockchain API.
+
+    **Authentication**: P2P endpoints use Ed25519 signatures via `X-Node-Pubkey` and `X-Node-Signature` headers.
+    Internal endpoints require `X-Internal-Key` header.
+
+    **Rate Limits**: Node task assignment (`/v1/tasks/pending`) is rate-limited per public key (120 req/min default).
+    Exceeding the limit returns HTTP 429 with `Retry-After` header.
+  version: 0.10.0
+  contact:
+    name: D31337m3
+    url: https://d31337m3.com
+
+servers:
+  - url: http://localhost:9000
+    description: Local development
+
+paths:
+  /health:
+    get:
+      summary: Health check
+      responses:
+        "200":
+          description: Service healthy
+
+  /v1/chain/snapshot:
+    get:
+      summary: Get chain snapshot
+      description: Returns chain metadata, height, authenticated nodes, and approved hashes for seed sync.
+      responses:
+        "200":
+          description: Chain snapshot
+
+  /v1/chain/blocks:
+    get:
+      summary: Get blocks since height
+      parameters:
+        - name: since
+          in: query
+          schema:
+            type: integer
+            default: -1
+          description: Block height to fetch from
+      responses:
+        "200":
+          description: Block data
+
+  /v1/chain/peers:
+    get:
+      summary: List known peers
+      responses:
+        "200":
+          description: Peer list with URLs, pubkeys, and heights
+
+  /v1/chain/ping:
+    get:
+      summary: Peer heartbeat
+      description: Returns chain height and chain_id. Used by gossip worker to check peer liveness.
+      responses:
+        "200":
+          description: Pong with height
+
+  /v1/chain/pex:
+    get:
+      summary: Get known peers (PEX)
+      description: Returns list of known peers for peer exchange discovery.
+      responses:
+        "200":
+          description: Peer list
+    post:
+      summary: Exchange peers (PEX)
+      description: |
+        Submit known peers and receive peers you don't know. Part of peer exchange (PEX) protocol
+        for decentralized peer discovery. Each heartbeat cycle, nodes exchange peer lists with their neighbors.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                peers:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      url:
+                        type: string
+                      pubkey:
+                        type: string
+                      height:
+                        type: integer
+      responses:
+        "200":
+          description: Peers you know + count of newly added
+
+  /v1/chain/gossip:
+    post:
+      summary: Receive gossiped transaction
+      description: Accept a new transaction from a peer and add it to the chain if valid.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                transaction:
+                  type: string
+                  description: Hex-encoded packed transaction
+      responses:
+        "200":
+          description: Transaction accepted
+        "409":
+          description: Duplicate transaction
+
+  /v1/tasks/pending:
+    get:
+      summary: Get next pending task
+      description: |
+        Atomically claims and returns the highest-priority pending task for the requesting node.
+        Rate-limited: 120 requests per minute per public key.
+      parameters:
+        - name: X-Node-Pubkey
+          in: header
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Task assigned or no tasks available
+        "429":
+          description: Rate limit exceeded
+          headers:
+            Retry-After:
+              schema:
+                type: integer
+
+  /v1/tasks:
+    get:
+      summary: List tasks
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [pending, assigned, completed]
+      responses:
+        "200":
+          description: Task list
+
+  /v1/tasks/create:
+    post:
+      summary: Create a new task
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                type:
+                  type: string
+                  default: crawl
+                urls:
+                  type: array
+                  items:
+                    type: string
+                recipient_pubkey:
+                  type: string
+                priority:
+                  type: integer
+                  default: 5
+                  description: "Task priority (1=highest, 10=lowest). Higher priority tasks are assigned first."
+                geo_region:
+                  type: string
+                  description: Optional geo-routing hint
+                scheduled_at:
+                  type: number
+                  description: Optional Unix timestamp for delayed execution
+      responses:
+        "201":
+          description: Task created
+
+  /v1/tasks/result:
+    post:
+      summary: Submit task results
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                task_id:
+                  type: string
+                results:
+                  type: array
+                failures:
+                  type: array
+      responses:
+        "200":
+          description: Results recorded
+
+  /v1/chain/prune:
+    post:
+      summary: Prune old blocks
+      description: |
+        Remove old blocks to reduce disk usage. Keeps the most recent `keep_blocks` blocks.
+        Requires internal API key.
+      parameters:
+        - name: X-Internal-Key
+          in: header
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                keep_blocks:
+                  type: integer
+                  default: 1000
+      responses:
+        "200":
+          description: Blocks pruned
+        "403":
+          description: Forbidden (invalid internal key)
+
+  /v1/search:
+    post:
+      summary: Search the chain
+      description: |
+        Encrypted search — results are encrypted with the searcher's X25519 public key.
+        Requires valid subscription or trial.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                query:
+                  type: string
+                public_key:
+                  type: string
+                  description: X25519 public key for encrypting results
+      responses:
+        "200":
+          description: Encrypted search results
+        "403":
+          description: No active subscription or trial exhausted
+
+  /v1/super_search:
+    post:
+      summary: Super Search (meta-search)
+      description: |
+        Aggregates results from DuckDuckGo, Google, and Bing. Supports `trigger` field
+        for system-triggered automated searches with separate tier-based limits.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                query:
+                  type: string
+                public_key:
+                  type: string
+                trigger:
+                  type: string
+                  enum: [manual, keyword_monitor, crawler]
+                  default: manual
+      responses:
+        "200":
+          description: Aggregated search results
+        "429":
+          description: Tier limit exceeded
+
+  /v1/system-search:
+    post:
+      summary: Track system-triggered search
+      description: |
+        Internal endpoint for tracking automated/keyword-triggered searches against tier limits.
+        Tier limits: free=100, starter=500, pro=2000, enterprise=10000 per 30-day rolling window.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                user_id:
+                  type: integer
+                tier:
+                  type: string
+      responses:
+        "200":
+          description: Usage recorded
+        "429":
+          description: Limit exceeded

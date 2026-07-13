@@ -257,6 +257,10 @@ class GossipWorker:
                     self.peer_store.remove(peer.url)
 
     def _heartbeat_peers(self) -> None:
+        my_peers = [
+            {"url": p.url, "pubkey": p.pubkey.hex(), "height": p.height}
+            for p in self.peer_store.list()
+        ]
         for peer in self.peer_store.list():
             url = f"{peer.url.rstrip('/')}/v1/chain/ping"
             try:
@@ -271,3 +275,27 @@ class GossipWorker:
                 fails = self.peer_store.increment_failed(peer.url)
                 if fails >= self.max_failed_pings:
                     self.peer_store.remove(peer.url)
+            if my_peers:
+                pex_url = f"{peer.url.rstrip('/')}/v1/chain/pex"
+                try:
+                    pex_body = json.dumps({"peers": my_peers}).encode("utf-8")
+                    pex_req = urllib.request.Request(
+                        pex_url, data=pex_body,
+                        headers={"Content-Type": "application/json", "User-Agent": "sp1d3r-p2p/0.1"},
+                        method="POST",
+                    )
+                    pex_pk, pex_sig = sign_request(self.identity, "POST", pex_url, pex_body)
+                    pex_req.add_header("X-Node-Pubkey", pex_pk)
+                    pex_req.add_header("X-Node-Signature", pex_sig)
+                    with urllib.request.urlopen(pex_req, timeout=5) as resp:
+                        pex_data = json.loads(resp.read().decode("utf-8"))
+                    for remote_peer in pex_data.get("peers", []):
+                        r_url = remote_peer.get("url", "")
+                        r_pk = remote_peer.get("pubkey", "")
+                        if r_url and r_pk:
+                            try:
+                                self.peer_store.add(r_url, bytes.fromhex(r_pk), remote_peer.get("height", -1))
+                            except Exception:
+                                pass
+                except Exception:
+                    pass

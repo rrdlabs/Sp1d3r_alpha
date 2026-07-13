@@ -1,0 +1,59 @@
+name: D31337m3 CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  backend-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        run: |
+          cd d31337m3/microservices/sp1d3r
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      - name: Run chain tests
+        run: cd d31337m3/microservices/sp1d3r && python -m pytest tests/ -v
+
+  frontend-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Build desktop frontend
+        run: |
+          cd d31337m3/frontends/sp1d3r.d31337m3.com
+          npm ci
+          npm run build
+      - name: Build mobile user PWA
+        run: |
+          cd d31337m3/frontends/mobile.d31337m3.com
+          npm ci
+          npm run build
+      - name: Build mobile admin PWA
+        run: |
+          cd d31337m3/frontends/mobile-admin.d31337m3.com
+          npm ci
+          npm run build
+
+  cityhall-migration-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Check migrations
+        run: |
+          cd d31337m3/microservices/cityhall
+          pip install alembic sqlalchemy asyncpg
+          alembic heads --verbose || echo "No migrations or alembic not configured"

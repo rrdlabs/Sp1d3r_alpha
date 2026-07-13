@@ -28,6 +28,7 @@ import PaymentProcessing from "./pages/admin/PaymentProcessing"
 import SupportChat from "./pages/support/SupportChat"
 import UserDocuments from "./pages/dashboard/UserDocuments"
 import UserKeywords from "./pages/dashboard/UserKeywords"
+import NodeDashboard from "./pages/dashboard/NodeDashboard"
 import NodeInfo from "./pages/NodeInfo"
 import Flasher from "./pages/Flasher"
 import Paywall from "./pages/Paywall"
@@ -64,6 +65,7 @@ export default function App() {
               <Route path="/dashboard/subscription" element={<AuthGuard><SubscriptionManagement /></AuthGuard>} />
               <Route path="/dashboard/documents" element={<AuthGuard><UserDocuments /></AuthGuard>} />
               <Route path="/dashboard/keywords" element={<AuthGuard><UserKeywords /></AuthGuard>} />
+              <Route path="/dashboard/nodes" element={<AuthGuard><NodeDashboard /></AuthGuard>} />
               <Route path="/admin" element={<AuthGuard requireAdmin><AdminDashboard /></AuthGuard>} />
               <Route path="/admin/users" element={<AuthGuard requireAdmin><UserManagement /></AuthGuard>} />
               <Route path="/admin/services" element={<AuthGuard requireAdmin><ServiceMonitor /></AuthGuard>} />

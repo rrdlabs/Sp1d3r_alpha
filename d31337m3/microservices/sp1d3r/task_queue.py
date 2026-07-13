@@ -21,6 +21,9 @@ class Task:
     created_at: float = field(default_factory=time.time)
     assigned_at: float | None = None
     completed_at: float | None = None
+    priority: int = 5
+    geo_region: str = ""
+    scheduled_at: float | None = None
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -37,9 +40,11 @@ class TaskQueue:
         self._tasks: dict[str, Task] = {}
         self._load()
 
-    def create(self, type: str, urls: list[str], recipient_pubkey: str) -> Task:
+    def create(self, type: str, urls: list[str], recipient_pubkey: str,
+               priority: int = 5, geo_region: str = "") -> Task:
         with self._lock:
-            task = Task(type=type, urls=urls, recipient_pubkey=recipient_pubkey)
+            task = Task(type=type, urls=urls, recipient_pubkey=recipient_pubkey,
+                        priority=priority, geo_region=geo_region)
             self._tasks[task.id] = task
             self._save()
             return task
@@ -57,13 +62,18 @@ class TaskQueue:
 
     def assign_next(self, assigned_to_pubkey: str) -> Task | None:
         with self._lock:
-            for task in self._tasks.values():
-                if task.status == "pending":
-                    task.status = "assigned"
-                    task.assigned_to = assigned_to_pubkey
-                    task.assigned_at = time.time()
-                    self._save()
-                    return task
+            now = time.time()
+            pending = [t for t in self._tasks.values()
+                       if t.status == "pending" and (t.scheduled_at is None or t.scheduled_at <= now)]
+            if not pending:
+                return None
+            pending.sort(key=lambda t: (-t.priority, t.created_at))
+            task = pending[0]
+            task.status = "assigned"
+            task.assigned_to = assigned_to_pubkey
+            task.assigned_at = now
+            self._save()
+            return task
         return None
 
     def complete(self, task_id: str, results: list[dict], failures: list[dict]) -> Task | None:
@@ -77,6 +87,20 @@ class TaskQueue:
             task.completed_at = time.time()
             self._save()
             return task
+
+    def prune(self, keep_count: int = 1000) -> int:
+        with self._lock:
+            completed = sorted(
+                [t for t in self._tasks.values() if t.status == "completed"],
+                key=lambda t: t.completed_at or 0,
+            )
+            if len(completed) <= keep_count:
+                return 0
+            to_remove = completed[: len(completed) - keep_count]
+            for t in to_remove:
+                del self._tasks[t.id]
+            self._save()
+            return len(to_remove)
 
     def _save(self) -> None:
         self._path.parent.mkdir(parents=True, exist_ok=True)

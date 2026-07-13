@@ -6,6 +6,7 @@ import threading
 import time
 import urllib.parse
 import urllib.request
+from collections import defaultdict
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
@@ -67,6 +68,39 @@ SYSTEM_SEARCH_LIMITS = {
     "pro": 2000,
     "enterprise": 10000,
 }
+
+
+class _NodeRateLimiter:
+    def __init__(self, max_requests: int = 60, window_seconds: int = 60) -> None:
+        self._max = max_requests
+        self._window = window_seconds
+        self._requests: dict[str, list[float]] = defaultdict(list)
+        self._lock = threading.Lock()
+
+    def allow(self, key: str) -> bool:
+        now = time.time()
+        with self._lock:
+            timestamps = self._requests[key]
+            cutoff = now - self._window
+            self._requests[key] = [t for t in timestamps if t > cutoff]
+            if len(self._requests[key]) >= self._max:
+                return False
+            self._requests[key].append(now)
+            return True
+
+    def remaining(self, key: str) -> int:
+        now = time.time()
+        with self._lock:
+            timestamps = self._requests[key]
+            cutoff = now - self._window
+            self._requests[key] = [t for t in timestamps if t > cutoff]
+            return max(0, self._max - len(self._requests[key]))
+
+
+node_rate_limiter = _NodeRateLimiter(
+    max_requests=int(os.getenv("NODE_RATE_LIMIT_MAX", "120")),
+    window_seconds=int(os.getenv("NODE_RATE_LIMIT_WINDOW", "60")),
+)
 
 
 def _load_or_create_identity() -> Ed25519Identity:
@@ -316,6 +350,16 @@ class Sp1d3rHandler(CORSMixin, BaseHTTPRequestHandler):
             })
             return
 
+        if path == "/v1/chain/prune" and method == "POST":
+            if not _verify_internal_api_key(self):
+                self._send(403, {"error": "forbidden"})
+                return
+            body = _parse_body(self.rfile, int(self.headers.get("Content-Length", 0)))
+            keep_blocks = body.get("keep_blocks", 1000)
+            removed = chain.prune(keep_blocks=keep_blocks)
+            self._send(200, {"pruned": removed, "height": chain.height})
+            return
+
         if path == "/v1/chain/peers":
             peer_list = [
                 {"url": p.url, "pubkey": p.pubkey.hex(), "height": p.height, "last_seen": p.last_seen}
@@ -328,8 +372,37 @@ class Sp1d3rHandler(CORSMixin, BaseHTTPRequestHandler):
             self._p2p_sign_response(200, {
                 "status": "pong",
                 "height": chain.height,
-                "timestamp": time.time(),
+                "chain_id": chain.config.chain_id,
             })
+            return
+
+        if path == "/v1/chain/pex" and method == "POST":
+            body = _parse_body(self.rfile, int(self.headers.get("Content-Length", 0)))
+            known_peers = body.get("peers", [])
+            added = 0
+            my_pk = identity.public_key.hex()
+            for p in known_peers:
+                url = p.get("url", "")
+                pk_hex = p.get("pubkey", "")
+                if url and pk_hex and pk_hex != my_pk:
+                    try:
+                        peer_store.add(url, bytes.fromhex(pk_hex), p.get("height", -1))
+                        added += 1
+                    except Exception:
+                        pass
+            response_peers = [
+                {"url": p.url, "pubkey": p.pubkey.hex(), "height": p.height}
+                for p in peer_store.list()
+            ]
+            self._p2p_sign_response(200, {"peers": response_peers, "added": added})
+            return
+
+        if path == "/v1/chain/pex" and method == "GET":
+            response_peers = [
+                {"url": p.url, "pubkey": p.pubkey.hex(), "height": p.height}
+                for p in peer_store.list()
+            ]
+            self._p2p_sign_response(200, {"peers": response_peers})
             return
 
         if path == "/v1/chain/sync":
@@ -347,6 +420,13 @@ class Sp1d3rHandler(CORSMixin, BaseHTTPRequestHandler):
             pubkey = self.headers.get("X-Node-Pubkey", "")
             if not pubkey:
                 self._send(400, {"error": "X-Node-Pubkey header required"})
+                return
+            if not node_rate_limiter.allow(pubkey):
+                self._send(429, {
+                    "error": "rate_limit_exceeded",
+                    "remaining": node_rate_limiter.remaining(pubkey),
+                    "retry_after": 60,
+                })
                 return
             task = task_queue.assign_next(pubkey)
             if task is None:

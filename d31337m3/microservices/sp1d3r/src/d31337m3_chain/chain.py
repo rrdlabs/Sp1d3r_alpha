@@ -122,6 +122,19 @@ class AppChain:
         tmp.write_text(json.dumps(data, indent=2), encoding="utf-8")
         tmp.replace(self.state_path)
 
+    def prune(self, keep_blocks: int = 1000) -> int:
+        total = len(self.blocks)
+        if total <= keep_blocks:
+            return 0
+        remove_count = total - keep_blocks
+        self.blocks = self.blocks[remove_count:]
+        self.raw_transactions = self.raw_transactions[remove_count:]
+        self.events = self.events[remove_count * 2:]
+        if self.payload_roots and len(self.payload_roots) > keep_blocks:
+            self.payload_roots = self.payload_roots[-keep_blocks:]
+        self.save()
+        return remove_count
+
     def _load(self) -> None:
         data = json.loads(self.state_path.read_text(encoding="utf-8"))
         self.authenticated_nodes = {bytes.fromhex(k) for k in data.get("authenticated_nodes", [])}

@@ -68,6 +68,7 @@ const navItems: NavItem[] = [
   { label: "Subscription", path: "/dashboard/subscription", icon: <SubscriptionsIcon />, auth: true },
   { label: "Documents", path: "/dashboard/documents", icon: <DescriptionIcon />, auth: true },
   { label: "Keywords", path: "/dashboard/keywords", icon: <KeyIcon />, auth: true },
+  { label: "My Nodes", path: "/dashboard/nodes", icon: <ComputerIcon />, auth: true },
   { label: "Run a Node", path: "/nodes", icon: <ComputerIcon /> },
   { label: "Flash ESP32", path: "/flash", icon: <FlashOnIcon /> },
   {

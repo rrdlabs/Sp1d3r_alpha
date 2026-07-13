@@ -1,6 +1,38 @@
 version: "3.9"
 
 services:
+  postgres:
+    image: postgres:16-alpine
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: cityhall
+      POSTGRES_PASSWORD: cityhall
+      POSTGRES_DB: cityhall
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cityhall -d cityhall"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  cityhall:
+    build:
+      context: ./cityhall
+    ports:
+      - "8000:8000"
+    environment:
+      CITYHALL_PORT: "8000"
+      DATABASE_URL: "postgresql+asyncpg://cityhall:cityhall@postgres:5432/cityhall"
+      DIRECTOR_URL: "http://director:8400"
+      INBOXER_URL: "http://inboxer:8300"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - cityhall-data:/data
+
   director:
     build:
       context: ./director
@@ -103,6 +135,8 @@ services:
       - banker-data:/data
 
 volumes:
+  postgres-data:
+  cityhall-data:
   director-data:
   picaso-data:
   historian-data:

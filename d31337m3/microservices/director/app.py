@@ -297,11 +297,19 @@ class DirectorHandler(CORSMixin, BaseHTTPRequestHandler):
         if path == "/reconcile":
             store = _load_store()
             threshold = int(os.getenv("DIRECTOR_RESTART_THRESHOLD", "2"))
+            node_alert_threshold = int(os.getenv("DIRECTOR_NODE_ALERT_HOURS", "72"))
+            node_alert_sec = node_alert_threshold * 3600
+            now = int(time.time())
             for service in store["services"].values():
                 if not service.get("healthy", True) and int(service.get("failures", 0)) >= threshold:
                     service["status"] = "restarting"
                     service["restart_count"] = int(service.get("restart_count", 0)) + 1
-                    store["alerts"].append({"service": service["name"], "message": "restarting after failures", "at": int(time.time())})
+                    store["alerts"].append({"service": service["name"], "message": "restarting after failures", "at": now})
+                if service.get("kind") == "node" or service.get("name", "").startswith("node-agent"):
+                    last_seen = int(service.get("last_seen", 0))
+                    if last_seen and (now - last_seen) > node_alert_sec:
+                        msg = f"node {service['name']} offline for {(now - last_seen) // 3600}h (threshold: {node_alert_threshold}h)"
+                        store["alerts"].append({"service": service["name"], "message": msg, "at": now, "level": "warning"})
             _save_store(store)
             self._send(200, {"status": "reconciled", "services": list(store["services"].values())})
             return

@@ -29,6 +29,7 @@ export default function MobileLayout({ isDark: _isDark, onThemeToggle: _onThemeT
     { label: "Dashboard", path: "/dashboard", icon: <HomeIcon /> },
     { label: "Documents", path: "/dashboard/documents", icon: <DescriptionIcon /> },
     { label: "Keywords", path: "/dashboard/keywords", icon: <KeyIcon /> },
+    { label: "My Nodes", path: "/dashboard/nodes", icon: <ComputerIcon /> },
     { label: "Subscription", path: "/dashboard/subscription", icon: <SubscriptionsIcon /> },
     { label: "Settings", path: "/dashboard/settings", icon: <SettingsIcon /> },
     { divider: true },
