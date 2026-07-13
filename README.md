@@ -5,7 +5,8 @@
 
 D31337m3 is a decentralized privacy and reputation management platform combining a distributed crawler network with a custom Proof-of-Authority AppChain. Powered by **Sp1d3r** — our decentralized private search engine — it scrapes data from web brokers and search engine indexes with end-to-end encryption, commits cryptographic proofs to an immutable blockchain, and provides identity management, legal document generation, secure messaging, and a full admin/user UI.
 
-> **Status: ALPHA** — unstable, incomplete, not production-ready.
+> **Status: BETA- Onboarding of active beta testers is now live. Unless your prepared to handle the potential issues that
+> can and will arise from trialing beta software, please do not sign up yet and wait for full public launch. With that being said however, we are accepting new users via early access onboarding at https://d31337m3.com/register and use refferal code earlyaccess2026 to get exclusive limited discount subscription (100% off). Discount only valid till august 1st. 
 
 ---
 
