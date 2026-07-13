@@ -203,3 +203,111 @@ async def internal_user_id_for_pubkey(pubkey: str, request: Request):
         if not user:
             return {"user_id": None}
         return {"user_id": str(user.id)}
+
+
+SYSTEM_SEARCH_LIMITS = {
+    "free": 100,
+    "starter": 500,
+    "pro": 2000,
+    "enterprise": 10000,
+}
+
+
+@app.get("/internal/system-search-status")
+async def internal_system_search_status(user_id: str, tier: str = "free", request: Request = None):
+    from uuid import UUID
+    from datetime import datetime, timezone
+    from sqlalchemy import select
+    from app.database import get_session
+    from app.models import User
+
+    api_key = request.headers.get("X-Internal-Key", "")
+    if api_key != settings.internal_api_key:
+        from fastapi.responses import JSONResponse
+        return JSONResponse(status_code=403, content={"error": "forbidden"})
+
+    try:
+        uid = UUID(user_id)
+    except ValueError:
+        return {"allowed": False, "error": "invalid_user_id"}
+
+    now = datetime.now(timezone.utc)
+    session_factory = get_session
+    async for session in session_factory():
+        result = await session.execute(select(User).where(User.id == uid))
+        user = result.scalar_one_or_none()
+        if not user:
+            return {"allowed": False, "error": "user_not_found"}
+
+        limit = SYSTEM_SEARCH_LIMITS.get(tier, SYSTEM_SEARCH_LIMITS["free"])
+
+        if user.system_searches_period_start is None:
+            user.system_searches_period_start = now
+            user.system_searches_used = 0
+            user.system_search_limit = limit
+            await session.flush()
+            return {
+                "allowed": True,
+                "searches_used": 0,
+                "searches_remaining": limit,
+                "limit": limit,
+                "tier": tier,
+                "period_start": now.isoformat(),
+            }
+
+        period_elapsed = now - user.system_searches_period_start
+        if period_elapsed.days >= 30:
+            user.system_searches_period_start = now
+            user.system_searches_used = 0
+            user.system_search_limit = limit
+            await session.flush()
+            return {
+                "allowed": True,
+                "searches_used": 0,
+                "searches_remaining": limit,
+                "limit": limit,
+                "tier": tier,
+                "period_start": now.isoformat(),
+            }
+
+        if user.system_search_limit != limit:
+            user.system_search_limit = limit
+
+        can_search = user.system_searches_used < user.system_search_limit
+        return {
+            "allowed": can_search,
+            "searches_used": user.system_searches_used,
+            "searches_remaining": max(0, user.system_search_limit - user.system_searches_used),
+            "limit": user.system_search_limit,
+            "tier": tier,
+            "period_start": user.system_searches_period_start.isoformat() if user.system_searches_period_start else None,
+        }
+
+
+@app.post("/internal/system-search-mark-used")
+async def internal_system_search_mark_used(user_id: str, request: Request):
+    from uuid import UUID
+    from sqlalchemy import select
+    from app.database import get_session
+    from app.models import User
+
+    api_key = request.headers.get("X-Internal-Key", "")
+    if api_key != settings.internal_api_key:
+        from fastapi.responses import JSONResponse
+        return JSONResponse(status_code=403, content={"error": "forbidden"})
+
+    try:
+        uid = UUID(user_id)
+    except ValueError:
+        return {"error": "invalid_user_id"}
+
+    session_factory = get_session
+    async for session in session_factory():
+        result = await session.execute(select(User).where(User.id == uid))
+        user = result.scalar_one_or_none()
+        if not user:
+            return {"error": "user_not_found"}
+
+        user.system_searches_used += 1
+        await session.flush()
+        return {"ok": True, "searches_used": user.system_searches_used, "limit": user.system_search_limit}

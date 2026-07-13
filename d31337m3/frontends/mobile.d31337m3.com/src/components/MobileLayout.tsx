@@ -6,13 +6,12 @@ import {
 } from "@mui/material"
 import MenuIcon from "@mui/icons-material/Menu"
 import HomeIcon from "@mui/icons-material/Home"
-import SearchIcon from "@mui/icons-material/Search"
 import SubscriptionsIcon from "@mui/icons-material/Subscriptions"
 import SettingsIcon from "@mui/icons-material/Settings"
-import SupportAgentIcon from "@mui/icons-material/SupportAgent"
 import ComputerIcon from "@mui/icons-material/Computer"
+import DescriptionIcon from "@mui/icons-material/Description"
+import KeyIcon from "@mui/icons-material/Key"
 import LogoutIcon from "@mui/icons-material/Logout"
-import AutoAwesomeIcon from "@mui/icons-material/AutoAwesome"
 import { useAuth } from "../context/AuthContext"
 
 interface MobileLayoutProps { isDark: boolean; onThemeToggle: () => void }
@@ -28,14 +27,13 @@ export default function MobileLayout({ isDark: _isDark, onThemeToggle: _onThemeT
   type DividerItem = { divider: true }
   const navItems: (NavItem | DividerItem)[] = [
     { label: "Dashboard", path: "/dashboard", icon: <HomeIcon /> },
-    { label: "Search", path: "/dashboard#search", icon: <SearchIcon /> },
-    { label: "Super Search", path: "/dashboard#super-search", icon: <AutoAwesomeIcon /> },
+    { label: "Documents", path: "/dashboard/documents", icon: <DescriptionIcon /> },
+    { label: "Keywords", path: "/dashboard/keywords", icon: <KeyIcon /> },
     { label: "Subscription", path: "/dashboard/subscription", icon: <SubscriptionsIcon /> },
     { label: "Settings", path: "/dashboard/settings", icon: <SettingsIcon /> },
-    { label: "Support", path: "/support", icon: <SupportAgentIcon /> },
     { divider: true },
     { label: "Run a Node", path: "/nodes", icon: <ComputerIcon /> },
-    ...(isAdmin ? [{ label: "Admin Portal", path: "/admin", icon: <HomeIcon /> }] : []),
+    ...(isAdmin ? [{ label: "Admin Portal", path: "https://admin.d31337m3.com", icon: <HomeIcon /> }] : []),
   ]
 
   const handleNav = (path: string) => {

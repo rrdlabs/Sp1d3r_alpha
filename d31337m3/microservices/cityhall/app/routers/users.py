@@ -7,7 +7,13 @@ from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth import get_current_user, verify_password, hash_password
-from app.blockchain import generate_keypair, public_key_to_hex
+from app.blockchain import (
+    generate_mnemonic,
+    mnemonic_to_keypair,
+    hash_mnemonic,
+    verify_mnemonic,
+    public_key_to_hex,
+)
 from app.config import settings
 from app.database import get_session
 from app.models import AuditLog, User
@@ -15,6 +21,7 @@ from app.schemas import (
     KeypairResponse,
     LinkWalletRequest,
     PublicKeyResponse,
+    RecoverKeypairRequest,
     UserPublic,
     UserUpdate,
 )
@@ -46,12 +53,38 @@ async def generate_ed25519_keypair(
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ) -> KeypairResponse:
-    priv_raw, pub_raw = generate_keypair()
+    mnemonic_phrase = generate_mnemonic()
+    priv_raw, pub_raw = mnemonic_to_keypair(mnemonic_phrase)
     user.ed25519_public_key = pub_raw
+    user.seed_phrase_hash = hash_mnemonic(mnemonic_phrase)
     await session.flush()
     return KeypairResponse(
         private_key_hex=priv_raw.hex(),
         public_key_hex=pub_raw.hex(),
+        seed_phrase=mnemonic_phrase,
+    )
+
+
+@router.post("/me/recover-keypair")
+async def recover_keypair(
+    req: RecoverKeypairRequest,
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+) -> KeypairResponse:
+    mnemonic_phrase = req.seed_phrase.strip().lower()
+
+    from mnemonic import Mnemonic
+    if not Mnemonic("english").check(mnemonic_phrase):
+        raise HTTPException(status_code=400, detail="Invalid seed phrase. Please check all 12 words.")
+
+    priv_raw, pub_raw = mnemonic_to_keypair(mnemonic_phrase)
+    user.ed25519_public_key = pub_raw
+    user.seed_phrase_hash = hash_mnemonic(mnemonic_phrase)
+    await session.flush()
+    return KeypairResponse(
+        private_key_hex=priv_raw.hex(),
+        public_key_hex=pub_raw.hex(),
+        seed_phrase=mnemonic_phrase,
     )
 
 
@@ -102,6 +135,7 @@ async def delete_account(
     user.bio = None
     user.wallet_address = None
     user.ed25519_public_key = None
+    user.seed_phrase_hash = None
 
     session.add(
         AuditLog(

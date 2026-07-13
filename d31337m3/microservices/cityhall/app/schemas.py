@@ -82,7 +82,13 @@ class LinkWalletRequest(BaseModel):
 class KeypairResponse(BaseModel):
     private_key_hex: str
     public_key_hex: str
-    warning: str = "Store your private key securely. It will not be shown again."
+    seed_phrase: str
+    warning: str = "Store your private key and seed phrase securely. They will not be shown again."
+    seed_warning: str = "Your seed phrase can recover your keypair if lost. Write it down and store it offline."
+
+
+class RecoverKeypairRequest(BaseModel):
+    seed_phrase: str = Field(..., min_length=1)
 
 
 class PublicKeyResponse(BaseModel):
@@ -119,6 +125,9 @@ class UserPublic(BaseModel):
     trial_searches_used: int = 0
     trial_started_at: datetime | None = None
     node_pubkey: str | None = None
+    system_searches_used: int = 0
+    system_search_limit: int = 100
+    system_searches_period_start: datetime | None = None
 
     model_config = {"from_attributes": True}
 

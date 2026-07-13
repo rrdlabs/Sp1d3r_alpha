@@ -1,11 +1,10 @@
 import { useState, useEffect } from "react"
 import {
-  Box, Button, Container, Typography, Paper, Chip, Grid, CircularProgress, Alert,
+  Box, Container, Typography, Paper, Chip, Grid, CircularProgress, Alert,
 } from "@mui/material"
 import ComputerIcon from "@mui/icons-material/Computer"
 import CheckCircleIcon from "@mui/icons-material/CheckCircle"
 import ErrorIcon from "@mui/icons-material/Error"
-import DownloadIcon from "@mui/icons-material/Download"
 import { apiRequest } from "../api/client"
 
 interface LiveNode { name: string; pubkey: string; height: number; version: string; status: string; healthy: boolean; last_seen: number }
@@ -35,17 +34,12 @@ export default function NodeInfo() {
         background: "linear-gradient(135deg, rgba(46,125,50,0.08) 0%, rgba(25,118,210,0.08) 100%)",
         borderColor: "success.main",
       }}>
-        <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 1 }}>Free Pro Subscription</Typography>
-        <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
+        <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 0.5 }}>Free Pro Subscription</Typography>
+        <Typography variant="body2" color="text.secondary">
           Deploy a Sp1d3r node and earn a free Professional subscription. Help strengthen the decentralized network.
         </Typography>
-        <Button variant="contained" color="success" size="small" startIcon={<DownloadIcon />}
-          href="/firmware/sp1d3r_node_esp32_v0.1.0.bin" download
-        >
-          Download Firmware
-        </Button>
         <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: "block" }}>
-          Use the desktop flasher at d31337m3.com/flash for browser-based flashing.
+          Visit d31337m3.com/nodes on desktop for setup instructions and firmware.
         </Typography>
       </Paper>
 

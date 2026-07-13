@@ -61,6 +61,12 @@ INTERNAL_API_KEY = os.getenv("INTERNAL_API_KEY", "d31337m3-internal-key-change-i
 BANKER_URL = os.getenv("BANKER_URL", "http://127.0.0.1:8700")
 TRIAL_DAILY_LIMIT = 1
 TRIAL_MAX_DAYS = 7
+SYSTEM_SEARCH_LIMITS = {
+    "free": 100,
+    "starter": 500,
+    "pro": 2000,
+    "enterprise": 10000,
+}
 
 
 def _load_or_create_identity() -> Ed25519Identity:
@@ -176,6 +182,38 @@ def _check_subscription_only(user_id: str) -> dict:
         "reason": "subscription_required",
         "redirect": "/paywall",
     }
+
+
+def _check_system_search_limits(user_id: str, tier: str = "free") -> dict:
+    try:
+        req = urllib.request.Request(
+            f"{CITYHALL_URL}/internal/system-search-status?user_id={user_id}&tier={tier}",
+            headers={"X-Internal-Key": INTERNAL_API_KEY},
+        )
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            data = json.loads(resp.read().decode())
+        return data
+    except Exception:
+        return {"allowed": False, "error": "system_limit_check_failed"}
+
+
+def _mark_system_search_used(user_id: str) -> None:
+    try:
+        req = urllib.request.Request(
+            f"{CITYHALL_URL}/internal/system-search-mark-used?user_id={user_id}",
+            data=b"{}",
+            headers={"X-Internal-Key": INTERNAL_API_KEY, "Content-Type": "application/json"},
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            pass
+    except Exception:
+        pass
+
+
+def _verify_internal_api_key(handler: Any) -> bool:
+    api_key = handler.headers.get("X-Internal-Key", "")
+    return api_key == INTERNAL_API_KEY
 
 
 def _sync_from_seed(seed_url: str) -> bool:
@@ -557,7 +595,7 @@ class Sp1d3rHandler(CORSMixin, BaseHTTPRequestHandler):
             if auth_result.get("reason") == "trial":
                 _mark_trial_used(user_info["id"])
 
-            search = search_store.create(query, urls, recipient_pubkey_hex)
+            search = search_store.create(query, urls, recipient_pubkey_hex, trigger="user")
             for url in urls:
                 task = task_queue.create("crawl", [url], recipient_pubkey_hex)
                 search_store.add_task(search.id, task.id)
@@ -600,7 +638,7 @@ class Sp1d3rHandler(CORSMixin, BaseHTTPRequestHandler):
             search = search_store.create_super_search(query, recipient_pubkey_hex, {
                 "engines": ["google", "bing", "duckduckgo"],
                 "user_id": user_info["id"],
-            })
+            }, trigger="user")
 
             try:
                 aggregated = aggregate_search(query, top_n=20)
@@ -672,6 +710,119 @@ class Sp1d3rHandler(CORSMixin, BaseHTTPRequestHandler):
                 search_store.add_failure(search.id, {"error": str(exc)})
                 print(f"[super_search] FAILED query='{query}' error={exc}", flush=True)
                 self._send(500, {"error": "super_search_failed", "detail": str(exc)})
+            return
+
+        if path == "/v1/system-search":
+            if not _verify_internal_api_key(self):
+                self._send(403, {"error": "internal_api_key_required"})
+                return
+
+            payload = self._read_json()
+            query = payload.get("query", "")
+            recipient_pubkey_hex = payload.get("recipient_pubkey", "")
+            tier = payload.get("tier", "free")
+            user_id = payload.get("user_id", "")
+            if not query:
+                self._send(400, {"error": "query_required"})
+                return
+            if not recipient_pubkey_hex:
+                self._send(400, {"error": "recipient_pubkey_required"})
+                return
+            if not user_id:
+                self._send(400, {"error": "user_id_required"})
+                return
+
+            limits = _check_system_search_limits(user_id, tier)
+            if not limits.get("allowed"):
+                self._send(429, {
+                    "error": "system_search_limit_exceeded",
+                    "searches_used": limits.get("searches_used", 0),
+                    "limit": limits.get("limit", 0),
+                    "tier": tier,
+                    "period_start": limits.get("period_start"),
+                })
+                return
+
+            search = search_store.create_system_search(query, recipient_pubkey_hex, tier, {
+                "user_id": user_id,
+                "triggered_by": "system",
+            })
+
+            try:
+                aggregated = aggregate_search(query, top_n=20)
+                engines_used = aggregated.get("engines_used", [])
+                engine_counts = aggregated.get("engine_counts", {})
+                search_results = aggregated.get("results", [])
+
+                recipient_pubkey = bytes.fromhex(recipient_pubkey_hex)
+                encrypted_results: list[dict[str, Any]] = []
+
+                for result in search_results:
+                    try:
+                        result_bytes = json.dumps(result, separators=(",", ":")).encode("utf-8")
+                        finding = worker.encrypt_payload(result_bytes, recipient_pubkey)
+                        tx = TransactionHeader.create(
+                            PAYLOAD_COMMIT,
+                            identity,
+                            finding.payload_hash,
+                            finding.merkle_root,
+                        )
+                        chain.submit(tx)
+                        store.save(finding, metadata={
+                            "url": result.get("url", ""),
+                            "source": "system_search",
+                            "query": query,
+                            "user_id": user_id,
+                            "fetched_at": time.time(),
+                        })
+                        encrypted_results.append({
+                            "rank": result.get("rank"),
+                            "title": result.get("title", ""),
+                            "url": result.get("url", ""),
+                            "source_engines": result.get("source_engines", []),
+                            "score": result.get("score", 0),
+                            "payload_hash": finding.payload_hash.hex(),
+                            "merkle_root": finding.merkle_root.hex(),
+                            "ephemeral_public_key": finding.ephemeral_public_key.hex(),
+                            "nonce": finding.nonce.hex(),
+                            "ciphertext": finding.ciphertext.hex(),
+                        })
+                    except Exception as exc:
+                        search_store.add_failure(search.id, {
+                            "url": result.get("url", ""),
+                            "error": str(exc),
+                        })
+
+                search_store.add_super_result(search.id, {
+                    "results": encrypted_results,
+                    "total_raw": aggregated.get("total_raw", 0),
+                    "engines_used": engines_used,
+                    "engine_counts": engine_counts,
+                })
+
+                _mark_system_search_used(user_id)
+
+                print(
+                    f"[system_search] query='{query}' results={len(encrypted_results)} "
+                    f"engines={engines_used} user_id={user_id} tier={tier}",
+                    flush=True,
+                )
+
+                response = search_store.get(search.id)
+                self._send(201, {
+                    "search_id": search.id,
+                    "status": "completed",
+                    "query": query,
+                    "results": response.results if response else [],
+                    "created_at": search.created_at,
+                    "completed_at": time.time(),
+                    "trigger": "system",
+                    "tier": tier,
+                })
+            except Exception as exc:
+                search_store.add_failure(search.id, {"error": str(exc)})
+                print(f"[system_search] FAILED query='{query}' error={exc}", flush=True)
+                self._send(500, {"error": "system_search_failed", "detail": str(exc)})
             return
 
         self._send(404, {"error": "not_found"})

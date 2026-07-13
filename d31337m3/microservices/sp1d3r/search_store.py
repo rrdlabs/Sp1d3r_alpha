@@ -24,6 +24,8 @@ class SearchQuery:
     recipient_pubkey: str = ""
     status: str = "pending"
     search_type: str = "crawl"
+    trigger: str = "user"  # "user" = manual UI search, "system" = automated/background
+    tier: str = "free"     # tier for system-triggered limits: free, starter, pro, enterprise
     task_ids: list[str] = field(default_factory=list)
     results: list[dict] = field(default_factory=list)
     failures: list[dict] = field(default_factory=list)
@@ -46,19 +48,20 @@ class SearchStore:
         self._searches: dict[str, SearchQuery] = {}
         self._load()
 
-    def create(self, query: str, urls: list[str], recipient_pubkey: str) -> SearchQuery:
+    def create(self, query: str, urls: list[str], recipient_pubkey: str, trigger: str = "user") -> SearchQuery:
         with self._lock:
             search = SearchQuery(
                 query=query,
                 urls=urls,
                 recipient_pubkey=recipient_pubkey,
                 search_type="crawl",
+                trigger=trigger,
             )
             self._searches[search.id] = search
             self._save()
             return search
 
-    def create_super_search(self, query: str, recipient_pubkey: str, metadata: dict | None = None) -> SearchQuery:
+    def create_super_search(self, query: str, recipient_pubkey: str, metadata: dict | None = None, trigger: str = "user") -> SearchQuery:
         with self._lock:
             search = SearchQuery(
                 query=query,
@@ -66,6 +69,23 @@ class SearchStore:
                 recipient_pubkey=recipient_pubkey,
                 search_type="super_search",
                 status="pending",
+                trigger=trigger,
+                metadata=metadata or {},
+            )
+            self._searches[search.id] = search
+            self._save()
+            return search
+
+    def create_system_search(self, query: str, recipient_pubkey: str, tier: str = "free", metadata: dict | None = None) -> SearchQuery:
+        with self._lock:
+            search = SearchQuery(
+                query=query,
+                urls=[],
+                recipient_pubkey=recipient_pubkey,
+                search_type="system_search",
+                status="pending",
+                trigger="system",
+                tier=tier,
                 metadata=metadata or {},
             )
             self._searches[search.id] = search

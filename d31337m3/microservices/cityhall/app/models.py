@@ -36,6 +36,7 @@ class User(Base):
     referred_by_code: Mapped[str | None] = mapped_column(String(50), nullable=True)
 
     ed25519_public_key: Mapped[bytes | None] = mapped_column(LargeBinary(32), nullable=True)
+    seed_phrase_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
     wallet_address: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
     avatar_url: Mapped[str | None] = mapped_column(String(1024), nullable=True)
@@ -56,6 +57,10 @@ class User(Base):
     trial_searches_used: Mapped[int] = mapped_column(default=0)
     trial_started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     node_pubkey: Mapped[str | None] = mapped_column(String(255), nullable=True)
+
+    system_searches_used: Mapped[int] = mapped_column(default=0)
+    system_search_limit: Mapped[int] = mapped_column(default=100)
+    system_searches_period_start: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     enrollment_data: Mapped[dict] = mapped_column(JSON, default=dict)
     extra_fields: Mapped[dict] = mapped_column(JSON, default=dict)

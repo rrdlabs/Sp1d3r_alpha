@@ -43,7 +43,11 @@ export default function UserSettings() {
   const [saving, setSaving] = useState(false)
   const [msg, setMsg] = useState("")
   const [wallet, setWallet] = useState("")
-  const [keypair, setKeypair] = useState<{ private_key_hex: string; public_key_hex: string } | null>(null)
+  const [keypair, setKeypair] = useState<{ private_key_hex: string; public_key_hex: string; seed_phrase: string } | null>(null)
+  const [recoveryOpen, setRecoveryOpen] = useState(false)
+  const [recoveryPhrase, setRecoveryPhrase] = useState("")
+  const [recovering, setRecovering] = useState(false)
+  const [recoveryMsg, setRecoveryMsg] = useState("")
 
   const [currentPassword, setCurrentPassword] = useState("")
   const [newPassword, setNewPassword] = useState("")
@@ -86,12 +90,33 @@ export default function UserSettings() {
   }
 
   const handleGenKeypair = async () => {
-    const res = await apiRequest<{ private_key_hex: string; public_key_hex: string }>(
+    const res = await apiRequest<{ private_key_hex: string; public_key_hex: string; seed_phrase: string }>(
       "cityhall",
       "POST",
       "/users/me/generate-keypair",
     )
     if (res.ok) setKeypair(res.data)
+  }
+
+  const handleRecoverKeypair = async () => {
+    if (!recoveryPhrase.trim()) return
+    setRecovering(true)
+    setRecoveryMsg("")
+    const res = await apiRequest<{ private_key_hex: string; public_key_hex: string; seed_phrase: string }>(
+      "cityhall",
+      "POST",
+      "/users/me/recover-keypair",
+      { seed_phrase: recoveryPhrase.trim() },
+    )
+    setRecovering(false)
+    if (res.ok) {
+      setKeypair(res.data)
+      setRecoveryMsg("Keypair recovered successfully!")
+      setRecoveryOpen(false)
+      setRecoveryPhrase("")
+    } else {
+      setRecoveryMsg((res.data as any)?.detail || "Invalid seed phrase")
+    }
   }
 
   const handleChangePassword = async () => {
@@ -225,20 +250,55 @@ export default function UserSettings() {
           <Typography variant="h6">Ed25519 Keypair</Typography>
         </Box>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-          Generate a keypair for blockchain authentication and crawl encryption.
+          Generate a keypair for blockchain authentication and crawl encryption. A 12-word seed phrase is generated alongside your key — use it to recover a lost keypair.
         </Typography>
-        <Button variant="outlined" onClick={handleGenKeypair}>Generate Keypair</Button>
+        <Box sx={{ display: "flex", gap: 1 }}>
+          <Button variant="outlined" onClick={handleGenKeypair}>Generate Keypair</Button>
+          <Button variant="outlined" color="warning" onClick={() => setRecoveryOpen(true)}>Recover from Seed</Button>
+        </Box>
+        {recoveryMsg && !keypair && (
+          <Alert severity={recoveryMsg.includes("success") ? "success" : "error"} sx={{ mt: 2 }}>{recoveryMsg}</Alert>
+        )}
         {keypair && (
           <Box sx={{ mt: 2 }}>
             <Divider sx={{ mb: 2 }} />
             <Alert severity="warning" sx={{ mb: 1 }}>
-              Save your private key securely. It will not be shown again.
+              Save your private key and seed phrase securely. They will not be shown again.
             </Alert>
+            <Alert severity="info" sx={{ mb: 1 }}>
+              <strong>Seed Phrase (12 words):</strong> Write this down offline. It can recover your keypair if you lose your private key.
+            </Alert>
+            <TextField fullWidth label="Seed Phrase" value={keypair.seed_phrase} slotProps={{ input: { readOnly: true } }} sx={{ mb: 1 }} />
             <TextField fullWidth label="Public Key" value={keypair.public_key_hex} slotProps={{ input: { readOnly: true } }} sx={{ mb: 1 }} />
             <TextField fullWidth label="Private Key" value={keypair.private_key_hex} slotProps={{ input: { readOnly: true } }} multiline />
           </Box>
         )}
       </Paper>
+
+      <Dialog open={recoveryOpen} onClose={() => { setRecoveryOpen(false); setRecoveryPhrase(""); setRecoveryMsg("") }} maxWidth="sm" fullWidth>
+        <DialogTitle>Recover Keypair from Seed Phrase</DialogTitle>
+        <DialogContent>
+          <DialogContentText sx={{ mb: 2 }}>
+            Enter your 12-word seed phrase to regenerate your keypair. This will replace your current public key.
+          </DialogContentText>
+          {recoveryMsg && <Alert severity={recoveryMsg.includes("success") ? "success" : "error"} sx={{ mb: 2 }}>{recoveryMsg}</Alert>}
+          <TextField
+            fullWidth
+            label="12-Word Seed Phrase"
+            value={recoveryPhrase}
+            onChange={(e) => setRecoveryPhrase(e.target.value)}
+            placeholder="word1 word2 word3 ... word12"
+            multiline
+            rows={2}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => { setRecoveryOpen(false); setRecoveryPhrase(""); setRecoveryMsg("") }}>Cancel</Button>
+          <Button variant="contained" color="warning" onClick={handleRecoverKeypair} disabled={recovering || !recoveryPhrase.trim()}>
+            {recovering ? "Recovering..." : "Recover"}
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       <Paper sx={{ p: 3, mt: 2, borderColor: "error.main" }} variant="outlined">
         <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 2 }}>
