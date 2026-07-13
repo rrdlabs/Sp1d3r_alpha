@@ -119,28 +119,6 @@ Data directories: `/var/lib/sp1d3r/{service}/`
 | Process | pm2 (all services), Docker (PostgreSQL + node agents only) |
 
 ---
-
-## Quick Start
-
-```bash
-# Start all services
-pm2 start d31337m3/microservices/ecosystem.config.js
-
-# Run database migration
-cd d31337m3/microservices/cityhall && PYTHONPATH=. alembic upgrade head
-
-# Build frontend
-cd d31337m3/frontends/sp1d3r.d31337m3.com && npm run build
-
-# Run node agent
-docker run --rm \
-  -e AGENT_USERNAME=xxx -e AGENT_PASSWORD=xxx \
-  -e CITYHALL_URL=https://d31337m3.com/cityhall \
-  -e SP1D3R_URL=https://d31337m3.com/sp1d3r \
-  -e DIRECTOR_URL=https://d31337m3.com/director \
-  d31337m3/node-agent
-```
-
 **Port Map**: 8000=CityHall, 8100=Historian, 8200=Lawyer, 8300=Inboxer, 8400=Director, 8500=Picaso, 8600=Spiderwire, 8700=Banker, 9000=Sp1d3r
 
 ---
