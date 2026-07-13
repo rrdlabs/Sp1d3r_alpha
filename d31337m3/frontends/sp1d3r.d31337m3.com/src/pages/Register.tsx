@@ -18,6 +18,7 @@ import {
 } from "@mui/material"
 import { useAuth, getDeviceId } from "../context/AuthContext"
 import OTPVerification from "./OTPVerification"
+import KeypairDisplay from "../components/KeypairDisplay"
 import type { OTPPending } from "../context/AuthContext"
 
 const steps = ["Account", "Profile", "Enrollment"]
@@ -29,6 +30,7 @@ export default function Register() {
   const [error, setError] = useState("")
   const [loading, setLoading] = useState(false)
   const [otpPending, setOtpPending] = useState<OTPPending | null>(null)
+  const [showKeypair, setShowKeypair] = useState(false)
 
   const [form, setForm] = useState({
     username: "",
@@ -66,12 +68,32 @@ export default function Register() {
       navigate("/dashboard")
     } else if ("otp" in result) {
       setOtpPending(result.otp)
+      if (result.otp.seed_phrase) {
+        setShowKeypair(true)
+      }
     } else {
       setError("Registration failed. Username or email may already be taken.")
     }
   }
 
   if (otpPending) {
+    if (showKeypair && otpPending.seed_phrase) {
+      return (
+        <Container maxWidth="sm" sx={{ mt: 6 }}>
+          <Paper sx={{ p: 4 }} variant="outlined">
+            <Typography variant="h4" gutterBottom sx={{ fontFamily: "monospace", textAlign: "center" }}>
+              Your Key Pair
+            </Typography>
+            <KeypairDisplay
+              seedPhrase={otpPending.seed_phrase}
+              privateKeyHex={otpPending.private_key_hex || ""}
+              publicKeyHex={otpPending.public_key_hex || ""}
+              onContinue={() => setShowKeypair(false)}
+            />
+          </Paper>
+        </Container>
+      )
+    }
     return (
       <OTPVerification
         userId={otpPending.user_id}

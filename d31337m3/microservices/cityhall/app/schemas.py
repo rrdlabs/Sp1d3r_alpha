@@ -54,6 +54,9 @@ class OTPRequiredResponse(BaseModel):
     username: str
     purpose: str
     email_hint: str
+    seed_phrase: str | None = None
+    private_key_hex: str | None = None
+    public_key_hex: str | None = None
 
 
 class ChallengeResponse(BaseModel):

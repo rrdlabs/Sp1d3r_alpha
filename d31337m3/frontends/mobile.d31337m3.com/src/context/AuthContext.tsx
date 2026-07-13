@@ -42,6 +42,9 @@ export interface OTPPending {
   username: string
   purpose: string
   email_hint: string
+  seed_phrase?: string
+  private_key_hex?: string
+  public_key_hex?: string
 }
 
 type AuthResult = { ok: true } | { ok: false } | { ok: false; otp: OTPPending }
@@ -108,7 +111,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const register = useCallback(async (data: Record<string, unknown>): Promise<AuthResult> => {
-    const res = await apiRequest<{ access_token: string; user_id: string; username: string; is_admin: boolean } & { requires_otp?: boolean; purpose?: string; email_hint?: string }>(
+    const res = await apiRequest<{ access_token: string; user_id: string; username: string; is_admin: boolean } & { requires_otp?: boolean; purpose?: string; email_hint?: string; seed_phrase?: string; private_key_hex?: string; public_key_hex?: string }>(
       "cityhall",
       "POST",
       "/auth/register",
@@ -116,7 +119,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     )
     if (res.ok) {
       if (res.data.requires_otp) {
-        return { ok: false, otp: { requires_otp: true, user_id: res.data.user_id, username: res.data.username, purpose: res.data.purpose!, email_hint: res.data.email_hint! } }
+        return { ok: false, otp: { requires_otp: true, user_id: res.data.user_id, username: res.data.username, purpose: res.data.purpose!, email_hint: res.data.email_hint!, seed_phrase: res.data.seed_phrase, private_key_hex: res.data.private_key_hex, public_key_hex: res.data.public_key_hex } }
       }
       const { access_token, user_id, username: uname, is_admin } = res.data
       localStorage.setItem("sp1d3r_token", access_token)

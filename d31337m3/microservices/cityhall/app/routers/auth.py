@@ -21,7 +21,9 @@ from app.auth import (
     verify_password,
 )
 from app.blockchain import (
-    generate_keypair,
+    generate_mnemonic,
+    hash_mnemonic,
+    mnemonic_to_keypair,
     public_key_from_hex,
     verify_signature,
 )
@@ -121,7 +123,9 @@ async def register(
     if existing.scalar_one_or_none():
         raise HTTPException(status_code=409, detail="Email or username already registered")
 
-    priv_raw, pub_raw = generate_keypair()
+    mnemonic_phrase = generate_mnemonic()
+    priv_raw, pub_raw = mnemonic_to_keypair(mnemonic_phrase)
+    seed_hash = hash_mnemonic(mnemonic_phrase)
     ref_code = uuid.uuid4().hex[:12].upper()
 
     enrollment = {
@@ -151,6 +155,7 @@ async def register(
         referral_code=ref_code,
         referred_by_code=req.referral_code if referred_by_user else None,
         ed25519_public_key=pub_raw,
+        seed_phrase_hash=seed_hash,
         bio=req.bio,
         enrollment_data=enrollment,
         extra_fields=req.extra_fields,
@@ -176,6 +181,9 @@ async def register(
         username=user.username,
         purpose="register",
         email_hint=email_hint,
+        seed_phrase=mnemonic_phrase,
+        private_key_hex=priv_raw.hex(),
+        public_key_hex=pub_raw.hex(),
     )
 
 

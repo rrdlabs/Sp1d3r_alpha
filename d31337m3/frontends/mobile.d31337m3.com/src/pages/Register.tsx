@@ -6,6 +6,7 @@ import Visibility from "@mui/icons-material/Visibility"
 import VisibilityOff from "@mui/icons-material/VisibilityOff"
 import { useAuth, getDeviceId } from "../context/AuthContext"
 import OTPVerification from "./OTPVerification"
+import KeypairDisplay from "../components/KeypairDisplay"
 import type { OTPPending } from "../context/AuthContext"
 
 const steps = ["Account", "Profile"]
@@ -19,6 +20,7 @@ export default function Register() {
   const [error, setError] = useState("")
   const [loading, setLoading] = useState(false)
   const [otpPending, setOtpPending] = useState<OTPPending | null>(null)
+  const [showKeypair, setShowKeypair] = useState(false)
   const [form, setForm] = useState({
     username: "", email: "", password: "", confirm_password: "",
     first_name: "", last_name: "", dob: "",
@@ -36,12 +38,32 @@ export default function Register() {
     try {
       const result = await register(form)
       if (result.ok) navigate("/dashboard")
-      else if ("otp" in result) setOtpPending(result.otp)
+      else if ("otp" in result) {
+        setOtpPending(result.otp)
+        if (result.otp.seed_phrase) setShowKeypair(true)
+      }
       else setError("Registration failed. Username or email may already be taken.")
     } catch { setError("Registration failed") } finally { setLoading(false) }
   }
 
   if (otpPending) {
+    if (showKeypair && otpPending.seed_phrase) {
+      return (
+        <Container maxWidth="xs" sx={{ minHeight: "100dvh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
+          <Paper elevation={0} sx={{ width: "100%", p: 3, border: `1px solid ${theme.palette.divider}` }}>
+            <Typography variant="h6" gutterBottom sx={{ fontFamily: "monospace", textAlign: "center", fontWeight: 700 }}>
+              Your Key Pair
+            </Typography>
+            <KeypairDisplay
+              seedPhrase={otpPending.seed_phrase}
+              privateKeyHex={otpPending.private_key_hex || ""}
+              publicKeyHex={otpPending.public_key_hex || ""}
+              onContinue={() => setShowKeypair(false)}
+            />
+          </Paper>
+        </Container>
+      )
+    }
     return (
       <OTPVerification userId={otpPending.user_id} purpose={otpPending.purpose} emailHint={otpPending.email_hint}
         deviceId={getDeviceId()} onSuccess={(data) => { completeAuth(data); navigate("/dashboard") }} />
