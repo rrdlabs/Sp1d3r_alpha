@@ -16,6 +16,7 @@ import SettingsIcon from "@mui/icons-material/Settings"
 import ComputerIcon from "@mui/icons-material/Computer"
 import DescriptionIcon from "@mui/icons-material/Description"
 import KeyIcon from "@mui/icons-material/Key"
+import MenuBookIcon from "@mui/icons-material/MenuBook"
 import AccountTreeIcon from "@mui/icons-material/AccountTree"
 import HubIcon from "@mui/icons-material/Hub"
 import DownloadIcon from "@mui/icons-material/Download"
@@ -206,6 +207,21 @@ export default function UserDashboard() {
             <Box>
               <Typography variant="caption" sx={{ fontWeight: 700, display: "block", lineHeight: 1.2 }}>Keywords</Typography>
               <Typography variant="caption" color="text.secondary" sx={{ fontSize: "0.65rem" }}>Track terms</Typography>
+            </Box>
+          </Paper>
+        </Grid>
+        <Grid size={{ xs: 6 }}>
+          <Paper
+            component="a"
+            href="/whitepaper.md"
+            target="_blank"
+            sx={{ p: 1.5, display: "flex", alignItems: "center", gap: 1, textDecoration: "none" }}
+            variant="outlined"
+          >
+            <MenuBookIcon color="primary" sx={{ fontSize: 20 }} />
+            <Box>
+              <Typography variant="caption" sx={{ fontWeight: 700, display: "block", lineHeight: 1.2 }}>Whitepaper</Typography>
+              <Typography variant="caption" color="text.secondary" sx={{ fontSize: "0.65rem" }}>Platform docs</Typography>
             </Box>
           </Paper>
         </Grid>

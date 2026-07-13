@@ -28,6 +28,7 @@ import SettingsIcon from "@mui/icons-material/Settings"
 import SupportAgentIcon from "@mui/icons-material/SupportAgent"
 import DescriptionIcon from "@mui/icons-material/Description"
 import KeyIcon from "@mui/icons-material/Key"
+import MenuBookIcon from "@mui/icons-material/MenuBook"
 import { apiRequest } from "../../api/client"
 import { useAuth } from "../../context/AuthContext"
 import SearchPanel from "../../components/SearchPanel"
@@ -404,6 +405,9 @@ export default function UserDashboard() {
               </Button>
               <Button variant="outlined" component={RouterLink} to="/dashboard/keywords" fullWidth sx={{ justifyContent: "flex-start" }}>
                 <KeyIcon sx={{ mr: 1 }} /> Track Keywords
+              </Button>
+              <Button variant="outlined" href="/whitepaper.md" target="_blank" fullWidth sx={{ justifyContent: "flex-start" }}>
+                <MenuBookIcon sx={{ mr: 1 }} /> Whitepaper
               </Button>
             </Box>
           </Paper>
