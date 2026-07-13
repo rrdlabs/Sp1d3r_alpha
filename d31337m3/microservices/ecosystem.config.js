@@ -3,7 +3,7 @@ module.exports = {
     {
       name: "cityhall",
       cwd: "/home/dranger/Sp1d3r_alpha/d31337m3/microservices/cityhall",
-      script: "python3",
+      script: "/home/dranger/Sp1d3r_alpha/d31337m3/microservices/cityhall/.venv/bin/python",
       args: "-m uvicorn app.main:app --host 0.0.0.0 --port 8000",
       env: {
         DATABASE_URL: "postgresql+asyncpg://d31337m3:d31337m3@localhost:5432/d31337m3",
