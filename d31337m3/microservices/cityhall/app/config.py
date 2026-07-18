@@ -3,7 +3,7 @@ from pydantic_settings import BaseSettings
 
 class Settings(BaseSettings):
     database_url: str = "postgresql+asyncpg://cityhall:cityhall@localhost:5432/cityhall"
-    jwt_secret_key: str = "cityhall-dev-secret-key-change-in-production"
+    jwt_secret_key: str = "CHANGE_ME_IN_PRODUCTION"
     jwt_algorithm: str = "HS256"
     jwt_expire_minutes: int = 1440
     chain_state_path: str = ""
@@ -13,7 +13,7 @@ class Settings(BaseSettings):
     rate_limit_window_seconds: int = 60
     banker_url: str = "http://127.0.0.1:8700"
     director_url: str = "http://127.0.0.1:8400"
-    internal_api_key: str = "d31337m3-internal-key-change-in-production"
+    internal_api_key: str = "CHANGE_ME_IN_PRODUCTION"
 
     model_config = {"env_prefix": "CITYHALL_"}
 

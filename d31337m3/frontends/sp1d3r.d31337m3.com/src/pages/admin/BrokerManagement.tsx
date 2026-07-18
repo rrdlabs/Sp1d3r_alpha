@@ -37,7 +37,7 @@ import { apiRequest } from "../../api/client"
 import { useAuth } from "../../context/AuthContext"
 
 interface Broker {
-  id: string
+  id: number
   name: string
   display_name: string
   category: string
@@ -49,7 +49,7 @@ interface Broker {
   state: string
   opt_out_url: string
   notes: string
-  active: boolean
+  is_active: boolean
   created_at: string
   updated_at: string
 }
@@ -79,7 +79,7 @@ const EMPTY_BROKER: Partial<Broker> = {
   state: "",
   opt_out_url: "",
   notes: "",
-  active: true,
+  is_active: true,
 }
 
 export default function BrokerManagement() {
@@ -102,7 +102,7 @@ export default function BrokerManagement() {
   const [csvFile, setCsvFile] = useState<File | null>(null)
   const [csvRows, setCsvRows] = useState<Record<string, string>[]>([])
   const [csvErrors, setCsvErrors] = useState<string[]>([])
-  const [csvResults, setCsvResults] = useState<{ imported: number; skipped: number; errors: string[] } | null>(null)
+  const [csvResults, setCsvResults] = useState<{ imported: number; skipped: number; errors: { row: number; error: string }[] } | null>(null)
   const [csvImporting, setCsvImporting] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -113,10 +113,10 @@ export default function BrokerManagement() {
     const params = new URLSearchParams({ page: String(page), page_size: String(pageSize) })
     if (search) params.set("q", search)
     const [listRes, countRes] = await Promise.all([
-      apiRequest<{ brokers: Broker[] }>("cityhall", "GET", `/admin/brokers?${params.toString()}`),
+      apiRequest<{ items: Broker[] }>("cityhall", "GET", `/admin/brokers?${params.toString()}`),
       apiRequest<{ count: number }>("cityhall", "GET", "/admin/brokers/count"),
     ])
-    if (listRes.ok) setBrokers(listRes.data.brokers || [])
+    if (listRes.ok) setBrokers(listRes.data.items || [])
     if (countRes.ok) setTotalCount(countRes.data.count || 0)
     setLoading(false)
   }, [page, search])
@@ -168,7 +168,7 @@ export default function BrokerManagement() {
       state: broker.state,
       opt_out_url: broker.opt_out_url,
       notes: broker.notes,
-      active: broker.active,
+      is_active: broker.is_active,
     })
     setDialogOpen(true)
   }
@@ -284,9 +284,8 @@ export default function BrokerManagement() {
       state: row.state,
       opt_out_url: row.opt_out_url,
       notes: row.notes,
-      active: true,
     }))
-    const res = await apiRequest<{ imported: number; skipped: number; errors: string[] }>(
+    const res = await apiRequest<{ imported: number; skipped: number; errors: { row: number; error: string }[] }>(
       "cityhall",
       "POST",
       "/admin/brokers/csv",
@@ -414,8 +413,8 @@ export default function BrokerManagement() {
                   <TableCell>
                     <Chip
                       size="small"
-                      label={b.active ? "active" : "inactive"}
-                      color={b.active ? "success" : "default"}
+                      label={b.is_active ? "active" : "inactive"}
+                      color={b.is_active ? "success" : "default"}
                     />
                   </TableCell>
                   <TableCell align="right">
@@ -571,8 +570,8 @@ export default function BrokerManagement() {
               <FormControlLabel
                 control={
                   <Switch
-                    checked={form.active ?? true}
-                    onChange={(e) => handleFormChange("active", e.target.checked)}
+                    checked={form.is_active ?? true}
+                    onChange={(e) => handleFormChange("is_active", e.target.checked)}
                   />
                 }
                 label="Active"
@@ -667,7 +666,7 @@ export default function BrokerManagement() {
               {csvResults.errors.length > 0 && (
                 <Alert severity="error" sx={{ mt: 1 }}>
                   {csvResults.errors.map((e, i) => (
-                    <div key={i}>{e}</div>
+                    <div key={i}>Row {e.row}: {e.error}</div>
                   ))}
                 </Alert>
               )}

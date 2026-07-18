@@ -14,7 +14,7 @@ export default function EmailSettings() {
     e.preventDefault()
     setLoading(true); setResult(null)
     try {
-      const res = await fetch("http://127.0.0.1:8300/send", {
+      const res = await fetch(`${window.location.protocol}//${window.location.hostname}:8300/send`, {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ to, subject, body }),
       })

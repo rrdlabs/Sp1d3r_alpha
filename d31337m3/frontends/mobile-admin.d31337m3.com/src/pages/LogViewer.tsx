@@ -9,7 +9,7 @@ export default function LogViewer() {
 
   const fetchLogs = async () => {
     try {
-      const res = await fetch("http://127.0.0.1:8400/logs?lines=100")
+      const res = await fetch(`${window.location.protocol}//${window.location.hostname}:8400/logs?lines=100`)
       if (res.ok) {
         const data = await res.json()
         setLogs(data.lines || data.log || [])

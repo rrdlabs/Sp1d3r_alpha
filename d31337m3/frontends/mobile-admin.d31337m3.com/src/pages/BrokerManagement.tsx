@@ -3,15 +3,15 @@ import { Box, Container, Typography, Paper, Table, TableBody, TableCell, TableCo
 import StorefrontIcon from "@mui/icons-material/Storefront"
 import { apiRequest } from "../api/client"
 
-interface Broker { id: string; name: string; url: string; status: string }
+interface Broker { id: number; name: string; display_name: string; website: string; is_active: boolean }
 
 export default function BrokerManagement() {
   const [brokers, setBrokers] = useState<Broker[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    apiRequest<{ brokers: Broker[] }>("cityhall", "GET", "/brokers").then((res: any) => {
-      if (res.ok) setBrokers(res.data.brokers || [])
+    apiRequest<{ items: Broker[] }>("cityhall", "GET", "/admin/brokers").then((res: any) => {
+      if (res.ok) setBrokers(res.data.items || [])
       setLoading(false)
     })
   }, [])
@@ -28,13 +28,13 @@ export default function BrokerManagement() {
       ) : (
         <TableContainer component={Paper} variant="outlined">
           <Table size="small">
-            <TableHead><TableRow><TableCell>Name</TableCell><TableCell>URL</TableCell><TableCell>Status</TableCell></TableRow></TableHead>
+            <TableHead><TableRow><TableCell>Name</TableCell><TableCell>Website</TableCell><TableCell>Status</TableCell></TableRow></TableHead>
             <TableBody>
               {brokers.map((b) => (
                 <TableRow key={b.id}>
-                  <TableCell sx={{ fontWeight: 700 }}>{b.name}</TableCell>
-                  <TableCell sx={{ fontFamily: "monospace", fontSize: "0.7rem" }}>{b.url}</TableCell>
-                  <TableCell><Chip size="small" label={b.status || "active"} color="success" variant="outlined" /></TableCell>
+                  <TableCell sx={{ fontWeight: 700 }}>{b.display_name || b.name}</TableCell>
+                  <TableCell sx={{ fontFamily: "monospace", fontSize: "0.7rem" }}>{b.website || "—"}</TableCell>
+                  <TableCell><Chip size="small" label={b.is_active ? "active" : "inactive"} color={b.is_active ? "success" : "default"} variant="outlined" /></TableCell>
                 </TableRow>
               ))}
             </TableBody>

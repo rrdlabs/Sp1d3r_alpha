@@ -21,7 +21,7 @@ export default function SubscriptionManagement() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    apiRequest<SubStatus>("banker", "GET", "/subscription-status?user_id=current").then((res) => {
+    apiRequest<SubStatus>("banker", "GET", `/subscription-status?user_id=${user?.id || ""}`).then((res) => {
       if (res.ok) setSubStatus(res.data)
       setLoading(false)
     })

@@ -235,12 +235,12 @@ class NodeState:
         return False
 
     def send_heartbeat(self) -> bool:
-        url = f"{self.cfg.director_url.rstrip('/')}/services/node-agent/heartbeat"
+        url = f"{self.cfg.director_url.rstrip('/')}/services/node-agent-{self.pubkey_hex[:8]}/heartbeat"
         body = json.dumps({
             "pubkey": self.pubkey_hex,
             "height": self.chain_height,
             "status": "online",
-            "version": "0.1.0-beta",
+            "version": "0.5.0-beta",
         }).encode()
         result = fetch_json(
             url,
@@ -431,7 +431,7 @@ def handle_signal(signum: int, frame: Any, state: NodeState) -> None:
 # ---------------------------------------------------------------------------
 def main() -> None:
     cfg = Config()
-    log.info("=== d31337m3 Node Agent v0.1.0-beta ===")
+    log.info("=== d31337m3 Node Agent v0.5.0-beta ===")
     log.info("CityHall:  %s", cfg.cityhall_url)
     log.info("Sp1d3r:    %s", cfg.sp1d3r_url)
     log.info("Director:  %s", cfg.director_url)

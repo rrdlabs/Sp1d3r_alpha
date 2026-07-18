@@ -115,7 +115,7 @@ class DirectorHandler(CORSMixin, BaseHTTPRequestHandler):
             return
         if path == "/platform-health":
             SERVICE_HEALTH_MAP = {
-                "cityhall": "http://172.17.0.1:8000/health",
+                "cityhall": f"http://{os.environ.get('CITYHALL_HOST', '172.17.0.1')}:8000/health",
                 "historian": "http://historian:8100/health",
                 "lawyer": "http://lawyer:8200/health",
                 "inboxer": "http://inboxer:8300/health",

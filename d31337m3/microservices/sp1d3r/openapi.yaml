@@ -9,7 +9,7 @@ info:
 
     **Rate Limits**: Node task assignment (`/v1/tasks/pending`) is rate-limited per public key (120 req/min default).
     Exceeding the limit returns HTTP 429 with `Retry-After` header.
-  version: 0.10.0
+  version: 0.5.0
   contact:
     name: D31337m3
     url: https://d31337m3.com

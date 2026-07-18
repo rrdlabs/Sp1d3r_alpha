@@ -1,6 +1,6 @@
 [project]
 name = "d31337m3-network"
-version = "0.3.0"
+version = "0.5.0"
 description = "Privacy-preserving AppChain, crawler worker, and orchestrator scaffold."
 requires-python = ">=3.11"
 dependencies = ["cryptography>=46.0.0"]

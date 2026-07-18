@@ -1,7 +1,7 @@
 {
   "name": "d31337m3-mobile-admin",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.5.0",
   "type": "module",
   "scripts": {
     "dev": "vite",

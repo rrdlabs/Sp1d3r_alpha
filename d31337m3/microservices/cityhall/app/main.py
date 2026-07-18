@@ -11,7 +11,7 @@ app = FastAPI(
         "Pre-launch node operator onboarding, user auth, profile management, "
         "and blockchain identity linking for the d31337m3 network."
     ),
-    version="0.2.0",
+    version="0.5.0",
 )
 
 app.add_middleware(

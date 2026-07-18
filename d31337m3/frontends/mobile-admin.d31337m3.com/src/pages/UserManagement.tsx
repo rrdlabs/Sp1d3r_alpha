@@ -6,7 +6,7 @@ import {
 import PeopleIcon from "@mui/icons-material/People"
 import { apiRequest } from "../api/client"
 
-interface User { id: string; username: string; email: string; is_nodeop: boolean; signup_date: string }
+interface User { id: string; username: string; email: string; is_nodeop: boolean; is_admin: boolean; is_super_admin: boolean; signup_date: string }
 
 export default function UserManagement() {
   const [users, setUsers] = useState<User[]>([])
@@ -14,8 +14,8 @@ export default function UserManagement() {
   const [search, setSearch] = useState("")
 
   useEffect(() => {
-    apiRequest<{ users: User[] }>("cityhall", "GET", "/users").then((res: any) => {
-      if (res.ok) setUsers(res.data.users || [])
+    apiRequest<{ items: User[]; total: number }>("cityhall", "GET", "/admin/users").then((res: any) => {
+      if (res.ok) setUsers(res.data.items || [])
       setLoading(false)
     })
   }, [])

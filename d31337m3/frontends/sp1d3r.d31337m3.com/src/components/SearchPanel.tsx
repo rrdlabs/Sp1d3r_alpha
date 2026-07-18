@@ -132,7 +132,7 @@ export default function SearchPanel({ hasActiveSub = true, trialUsed = false, se
   useEffect(() => {
     loadOrGenerateKeypair()
       .then(({ publicKeyHex }) => { setPubKey(publicKeyHex); setKeyReady(true) })
-      .catch(() => setKeyReady(true))
+      .catch((err) => { console.error("Keypair generation failed:", err); setError("Encryption key generation failed. Search requires a modern browser with WebCrypto support."); setKeyReady(true) })
   }, [])
 
   const loadKeywords = useCallback(async () => {
@@ -184,6 +184,11 @@ export default function SearchPanel({ hasActiveSub = true, trialUsed = false, se
   const handleSearch = async () => {
     const q = getSearchQuery()
     if (!q) return
+
+    if (!pubKey) {
+      setError("Encryption key not available. Search requires a modern browser with WebCrypto support.")
+      return
+    }
 
     if (!hasActiveSub && trialUsed) {
       setError("Trial exhausted. Please subscribe to continue searching.")
@@ -416,7 +421,7 @@ export default function SearchPanel({ hasActiveSub = true, trialUsed = false, se
           <Button
             variant="contained"
             onClick={handleSearch}
-            disabled={searching || !keyReady || !getSearchQuery()}
+            disabled={searching || !keyReady || !pubKey || !getSearchQuery()}
             startIcon={searching ? <CircularProgress size={16} /> : (superSearch ? <AutoAwesomeIcon /> : <SearchIcon />)}
           >
             {searching ? "Searching..." : (superSearch ? "Super Search" : "Start Search")}

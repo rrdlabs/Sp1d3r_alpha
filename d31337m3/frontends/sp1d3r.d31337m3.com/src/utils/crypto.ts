@@ -1,6 +1,9 @@
 const STORAGE_KEY_PRIVATE = "sp1d3r_x25519_private"
 const STORAGE_KEY_PUBLIC = "sp1d3r_x25519_public"
 
+const X25519_ALGO = { name: "X25519" } as const
+const X25519_IMPORT = { name: "X25519" } as const
+
 function arrayBufferToBase64(buffer: ArrayBuffer): string {
   const bytes = new Uint8Array(buffer)
   let binary = ""
@@ -43,11 +46,11 @@ export async function generateX25519Keypair(): Promise<{
   publicKeyHex: string
   privateKeyBase64: string
 }> {
-  const keypair = (await crypto.subtle.generateKey(
-    { name: "ECDH", namedCurve: "X25519" } as any,
+  const keypair = await crypto.subtle.generateKey(
+    X25519_ALGO,
     true,
     ["deriveKey", "deriveBits"]
-  )) as CryptoKeyPair
+  )
 
   const pubRaw = await crypto.subtle.exportKey("raw", keypair.publicKey)
   const privRaw = await crypto.subtle.exportKey("pkcs8", keypair.privateKey)
@@ -80,7 +83,7 @@ export async function loadOrGenerateKeypair(): Promise<{
       const publicKey = await crypto.subtle.importKey(
         "raw",
         toArrayBuffer(pubBytes),
-        { name: "ECDH", namedCurve: "X25519" } as any,
+        X25519_IMPORT,
         true,
         []
       )
@@ -89,14 +92,15 @@ export async function loadOrGenerateKeypair(): Promise<{
       const privateKey = await crypto.subtle.importKey(
         "pkcs8",
         privBuffer,
-        { name: "ECDH", namedCurve: "X25519" } as any,
+        X25519_IMPORT,
         true,
         ["deriveKey", "deriveBits"]
       )
 
       return { privateKey, publicKey, publicKeyHex: existingPub }
     } catch {
-      // corrupted keys, regenerate
+      localStorage.removeItem(STORAGE_KEY_PUBLIC)
+      localStorage.removeItem(STORAGE_KEY_PRIVATE)
     }
   }
 
@@ -117,13 +121,13 @@ export async function decryptFinding(
   const ephemeralPublicKey = await crypto.subtle.importKey(
     "raw",
     toArrayBuffer(ephemeralPubBytes),
-    { name: "ECDH", namedCurve: "X25519" } as any,
+    X25519_IMPORT,
     false,
     []
   )
 
   const sharedSecret = await crypto.subtle.deriveBits(
-    { name: "ECDH", public: ephemeralPublicKey } as any,
+    { name: "X25519", public: ephemeralPublicKey },
     privateKey,
     256
   )

@@ -25,12 +25,12 @@ export default function AdminDashboard() {
       apiRequest("sp1d3r", "GET", "/health"),
       apiRequest<ChainState>("sp1d3r", "GET", "/v1/chain/state"),
       apiRequest<{ nodes: LiveNode[] }>("director", "GET", "/nodes"),
-      apiRequest<{ users: UserInfo[] }>("cityhall", "GET", "/users"),
+      apiRequest<{ items: UserInfo[] }>("cityhall", "GET", "/admin/users"),
     ]).then(([health, chain, nodesRes, usersRes]) => {
       setHealthOk(health.ok)
       if (chain.ok) setChainState(chain.data)
       if (nodesRes.ok) setNodes(nodesRes.data.nodes || [])
-      if (usersRes.ok) setUsers(usersRes.data.users || [])
+      if (usersRes.ok) setUsers(usersRes.data.items || [])
     })
   }, [])
 
