@@ -91,6 +91,9 @@ Data directories: `/var/lib/sp1d3r/{service}/`
 - Cryptocurrency payment verification on-chain
 - Subscription tier management
 - Auto-free tier for node operators
+- Monitors active node contributers & rewards linked node users with subscription tier w/o payment
+- default grace period for non-connectivity/responsiveness from node of 72hrs, afterwhich subscription is terminated
+- nodes that return online and sync with blockchain are automatically reinstated so long as offer is still valid.
 
 ### Other Services
 
@@ -104,8 +107,9 @@ Data directories: `/var/lib/sp1d3r/{service}/`
 
 - React 19 + TypeScript + Vite + MUI v6
 - Admin dashboard: user management, service monitoring, node management (live nodes/tasks/peers/blacklist), document management, pricing
-- User dashboard: chain status, connected nodes, encrypted search with X25519 E2E encryption
-
+- User dashboard: chain status, owned-nodes panel,network and p2p health, encrypted search emgine (with X25519 E2E encryption)
+- Workforce Panel - WIP - Will allow support staff and other employees create and manage schedules, see payroll events, create interdepartmental messages between staff, access paystubs, tax documents, and sent private messages to hr and managment staff members. Will also provide the functionality to clock-in/out of shifts, request days off etc. 
+- Support Team Portal - WIP - Will enable all support tier staff and managment tiers roles engage in live 1on1 instant messaging with clients who have chosen to send a help request via the chat option on dashboard and support pages. The support portal will automatically notify and support members on shift (Shifts managed by workforce panel) of a inbound support chat request and first available agent takes it. It will also allow internal support/resolution tickets be created and linked to specific clients profile allowing other agents to follow up/ catch up on whats already been discussed/ tested/corrected etc. Functionalities will include Support Chat 24-7 live (Customer Support, Tech Support, Onboarding/Sales etc), Creation, Deletion and Managent of associated client profile and corresponding support ticket. 
 ---
 
 ## Tech Stack
@@ -226,6 +230,7 @@ Swagger docs: `http://localhost:8000/docs`
 | POST | `/payments/stripe` | Process Stripe payment |
 | POST | `/payments/interac` | Process Interac e-transfer |
 | POST | `/payments/crypto` | Verify crypto payment on-chain |
+
 
 #### Picaso (port 8500)
 
