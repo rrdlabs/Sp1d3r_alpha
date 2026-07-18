@@ -11,6 +11,7 @@ import {
   Card,
   CardContent,
   Divider,
+  Chip,
 } from "@mui/material"
 import BugReportIcon from "@mui/icons-material/BugReport"
 import SecurityIcon from "@mui/icons-material/Security"
@@ -20,6 +21,10 @@ import SearchIcon from "@mui/icons-material/Search"
 import LockIcon from "@mui/icons-material/Lock"
 import ComputerIcon from "@mui/icons-material/Computer"
 import CheckCircleIcon from "@mui/icons-material/CheckCircle"
+import RocketLaunchIcon from "@mui/icons-material/RocketLaunch"
+import GroupsIcon from "@mui/icons-material/Groups"
+import KeyIcon from "@mui/icons-material/Key"
+import DeviceHubIcon from "@mui/icons-material/DeviceHub"
 import { useAuth } from "../context/AuthContext"
 import { apiRequest } from "../api/client"
 
@@ -127,6 +132,57 @@ export default function Landing() {
           </Box>
         </Container>
       </Box>
+
+      <Container maxWidth="lg" sx={{ py: 4 }}>
+        <Paper
+          variant="outlined"
+          sx={{
+            p: 4,
+            background: "linear-gradient(135deg, rgba(0,230,118,0.06) 0%, rgba(124,77,255,0.06) 100%)",
+            borderColor: "primary.main",
+            borderStyle: "solid",
+            borderWidth: 1,
+          }}
+        >
+          <Box sx={{ display: "flex", alignItems: "center", gap: 2, mb: 2 }}>
+            <RocketLaunchIcon sx={{ fontSize: 32, color: "primary.main" }} />
+            <Typography variant="h5" sx={{ fontFamily: "monospace", fontWeight: 700 }}>
+              v0.5.0 Public Beta
+            </Typography>
+            <Chip label="NEW" color="primary" size="small" sx={{ fontWeight: 700 }} />
+          </Box>
+          <Typography variant="body1" color="text.secondary" sx={{ mb: 3, maxWidth: 800 }}>
+            The platform is live. Multi-node peer operation, end-to-end encrypted search, PEX key exchange,
+            and blockchain-secured evidence — all operational and open for early access.
+          </Typography>
+          <Grid container spacing={3}>
+            {[
+              { icon: <GroupsIcon sx={{ fontSize: 28, color: "primary.main" }} />, title: "Multi-Node Network", desc: "Run your own node and strengthen the decentralized peer network" },
+              { icon: <KeyIcon sx={{ fontSize: 28, color: "secondary.main" }} />, title: "E2E Encrypted Search", desc: "X25519 key exchange — only you can read your results" },
+              { icon: <DeviceHubIcon sx={{ fontSize: 28, color: "primary.main" }} />, title: "PEX Key Exchange", desc: "Privacy-Enhanced Exchange with browser-native cryptography" },
+              { icon: <SecurityIcon sx={{ fontSize: 28, color: "secondary.main" }} />, title: "Blockchain Evidence", desc: "Tamper-proof chain secures every finding and action" },
+            ].map((item) => (
+              <Grid size={{ xs: 12, sm: 6 }} key={item.title}>
+                <Box sx={{ display: "flex", gap: 1.5, alignItems: "flex-start" }}>
+                  <Box sx={{ mt: 0.5 }}>{item.icon}</Box>
+                  <Box>
+                    <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>{item.title}</Typography>
+                    <Typography variant="body2" color="text.secondary">{item.desc}</Typography>
+                  </Box>
+                </Box>
+              </Grid>
+            ))}
+          </Grid>
+          <Box sx={{ mt: 3, display: "flex", gap: 2 }}>
+            <Button variant="contained" size="medium" onClick={() => navigate(token ? "/dashboard" : "/register")}>
+              {token ? "Go to Dashboard" : "Join the Beta"}
+            </Button>
+            <Button variant="outlined" size="medium" onClick={() => navigate("/nodes")}>
+              View Network Nodes
+            </Button>
+          </Box>
+        </Paper>
+      </Container>
 
       <Container maxWidth="lg" sx={{ py: 8 }}>
         <Typography variant="h3" gutterBottom sx={{ fontFamily: "monospace", fontWeight: 700, textAlign: "center" }}>
